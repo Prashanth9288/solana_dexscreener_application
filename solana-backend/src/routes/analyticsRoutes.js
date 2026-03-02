@@ -1,0 +1,284 @@
+// src/routes/analyticsRoutes.js
+// Production analytics REST API for the Solana DEX backend.
+// All endpoints use simple TTL caching (10s) to reduce DB load.
+
+const express = require('express');
+const pool    = require('../config/db');
+const tokenMetadata = require('../services/tokenMetadata');
+const logger  = require('../utils/logger');
+
+const router = express.Router();
+
+// ── Simple in-memory TTL cache ────────────────────────────────────────────────
+const cache = new Map(); // key → { data, expiresAt }
+const TTL_MS = 10_000;  // 10 seconds
+
+function getCache(key) {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { cache.delete(key); return null; }
+  return entry.data;
+}
+function setCache(key, data) {
+  cache.set(key, { data, expiresAt: Date.now() + TTL_MS });
+}
+
+// ── Shared query helper ───────────────────────────────────────────────────────
+async function query(sql, params = []) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(sql, params);
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
+// ── GET /analytics/recent?limit=50&offset=0 ───────────────────────────────────
+// Latest decoded swaps from the DB, most recent first.
+router.get('/recent', async (req, res) => {
+  try {
+    const limit  = Math.min(parseInt(req.query.limit  || '50', 10), 200);
+    const offset = parseInt(req.query.offset || '0', 10);
+    const cacheKey = `recent:${limit}:${offset}`;
+    const cached = getCache(cacheKey);
+    if (cached) return res.json(cached);
+
+    const rows = await query(
+      `SELECT signature, slot, block_time, wallet, dex, swap_side,
+              base_token, base_amount, quote_token, quote_amount,
+              price_usd, usd_value, hop_type, final_hop, created_at
+       FROM swaps
+       ORDER BY block_time DESC NULLS LAST
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    // Attach token metadata
+    const mints = [...new Set(rows.flatMap(r => [r.base_token, r.quote_token]).filter(Boolean))];
+    const meta  = await tokenMetadata.getBatch(mints);
+    const enriched = rows.map(r => ({
+      ...r,
+      base_token_meta:  meta[r.base_token]  || null,
+      quote_token_meta: meta[r.quote_token] || null,
+    }));
+
+    const result = { data: enriched, count: enriched.length, limit, offset };
+    setCache(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    logger.error('GET /analytics/recent error', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch recent swaps' });
+  }
+});
+
+// ── GET /analytics/stats ──────────────────────────────────────────────────────
+// Global platform stats: total txns, volume, unique wallets, top DEX.
+router.get('/stats', async (req, res) => {
+  try {
+    const cached = getCache('stats');
+    if (cached) return res.json(cached);
+
+    const [row] = await query(`
+      SELECT
+        COUNT(*)                                               AS total_transactions,
+        COUNT(DISTINCT wallet)                                 AS unique_wallets,
+        COUNT(DISTINCT dex)                                    AS active_dexes,
+        COALESCE(SUM(usd_value), 0)                           AS total_volume_usd,
+        COALESCE(AVG(usd_value), 0)                           AS avg_trade_usd,
+        COUNT(*) FILTER (WHERE swap_side = 'buy')             AS total_buys,
+        COUNT(*) FILTER (WHERE swap_side = 'sell')            AS total_sells,
+        COUNT(*) FILTER (WHERE block_time > NOW() - INTERVAL '24 hours') AS txns_24h,
+        COALESCE(SUM(usd_value) FILTER (
+          WHERE block_time > NOW() - INTERVAL '24 hours'), 0) AS volume_24h_usd
+      FROM swaps
+    `);
+
+    const result = {
+      total_transactions:  parseInt(row.total_transactions, 10),
+      unique_wallets:      parseInt(row.unique_wallets, 10),
+      active_dexes:        parseInt(row.active_dexes, 10),
+      total_volume_usd:    parseFloat(row.total_volume_usd),
+      avg_trade_usd:       parseFloat(parseFloat(row.avg_trade_usd).toFixed(2)),
+      total_buys:          parseInt(row.total_buys, 10),
+      total_sells:         parseInt(row.total_sells, 10),
+      txns_24h:            parseInt(row.txns_24h, 10),
+      volume_24h_usd:      parseFloat(row.volume_24h_usd),
+    };
+
+    setCache('stats', result);
+    res.json(result);
+  } catch (err) {
+    logger.error('GET /analytics/stats error', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// ── GET /analytics/pairs?limit=20 ────────────────────────────────────────────
+// Top trading pairs by USD volume.
+router.get('/pairs', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+    const cacheKey = `pairs:${limit}`;
+    const cached = getCache(cacheKey);
+    if (cached) return res.json(cached);
+
+    const rows = await query(
+      `SELECT
+         base_token, quote_token,
+         COUNT(*)                    AS trade_count,
+         COALESCE(SUM(usd_value), 0) AS total_volume_usd,
+         COALESCE(AVG(price_usd), 0) AS avg_price_usd,
+         MAX(block_time)             AS last_trade_at
+       FROM swaps
+       WHERE base_token IS NOT NULL AND quote_token IS NOT NULL
+       GROUP BY base_token, quote_token
+       ORDER BY total_volume_usd DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    // Enrich with token metadata
+    const mints = [...new Set(rows.flatMap(r => [r.base_token, r.quote_token]).filter(Boolean))];
+    const meta  = await tokenMetadata.getBatch(mints);
+    const enriched = rows.map(r => ({
+      ...r,
+      trade_count:      parseInt(r.trade_count, 10),
+      total_volume_usd: parseFloat(r.total_volume_usd),
+      avg_price_usd:    parseFloat(parseFloat(r.avg_price_usd).toFixed(8)),
+      base_token_meta:  meta[r.base_token]  || null,
+      quote_token_meta: meta[r.quote_token] || null,
+    }));
+
+    const result = { data: enriched, count: enriched.length };
+    setCache(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    logger.error('GET /analytics/pairs error', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch pairs' });
+  }
+});
+
+// ── GET /analytics/dex?limit=20 ──────────────────────────────────────────────
+// Volume and trade count broken down by DEX.
+router.get('/dex', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
+    const cacheKey = `dex:${limit}`;
+    const cached = getCache(cacheKey);
+    if (cached) return res.json(cached);
+
+    const rows = await query(
+      `SELECT
+         dex,
+         COUNT(*)                    AS trade_count,
+         COUNT(DISTINCT wallet)      AS unique_traders,
+         COALESCE(SUM(usd_value), 0) AS total_volume_usd,
+         COUNT(DISTINCT base_token)  AS unique_pairs
+       FROM swaps
+       WHERE dex IS NOT NULL
+       GROUP BY dex
+       ORDER BY total_volume_usd DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    const enriched = rows.map(r => ({
+      ...r,
+      trade_count:      parseInt(r.trade_count, 10),
+      unique_traders:   parseInt(r.unique_traders, 10),
+      total_volume_usd: parseFloat(r.total_volume_usd),
+      unique_pairs:     parseInt(r.unique_pairs, 10),
+    }));
+
+    const result = { data: enriched, count: enriched.length };
+    setCache(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    logger.error('GET /analytics/dex error', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch DEX stats' });
+  }
+});
+
+// ── GET /analytics/wallet/:address?limit=50&offset=0 ─────────────────────────
+// Trade history for a specific wallet.
+router.get('/wallet/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    const limit  = Math.min(parseInt(req.query.limit  || '50', 10), 200);
+    const offset = parseInt(req.query.offset || '0', 10);
+    const cacheKey = `wallet:${address}:${limit}:${offset}`;
+    const cached = getCache(cacheKey);
+    if (cached) return res.json(cached);
+
+    const [stats] = await query(
+      `SELECT
+         COUNT(*)                    AS total_trades,
+         COALESCE(SUM(usd_value), 0) AS total_volume_usd,
+         COUNT(DISTINCT dex)         AS dexes_used,
+         COUNT(DISTINCT base_token)  AS tokens_traded,
+         MIN(block_time)             AS first_trade_at,
+         MAX(block_time)             AS last_trade_at
+       FROM swaps WHERE wallet = $1`,
+      [address]
+    );
+
+    const trades = await query(
+      `SELECT signature, slot, block_time, dex, swap_side,
+              base_token, base_amount, quote_token, quote_amount,
+              price_usd, usd_value, hop_type, final_hop
+       FROM swaps
+       WHERE wallet = $1
+       ORDER BY block_time DESC NULLS LAST
+       LIMIT $2 OFFSET $3`,
+      [address, limit, offset]
+    );
+
+    // Enrich with metadata
+    const mints = [...new Set(trades.flatMap(r => [r.base_token, r.quote_token]).filter(Boolean))];
+    const meta  = await tokenMetadata.getBatch(mints);
+    const enrichedTrades = trades.map(r => ({
+      ...r,
+      base_token_meta:  meta[r.base_token]  || null,
+      quote_token_meta: meta[r.quote_token] || null,
+    }));
+
+    const result = {
+      wallet: address,
+      stats: {
+        total_trades:     parseInt(stats.total_trades, 10),
+        total_volume_usd: parseFloat(stats.total_volume_usd),
+        dexes_used:       parseInt(stats.dexes_used, 10),
+        tokens_traded:    parseInt(stats.tokens_traded, 10),
+        first_trade_at:   stats.first_trade_at,
+        last_trade_at:    stats.last_trade_at,
+      },
+      trades: enrichedTrades,
+      count:  enrichedTrades.length,
+      limit,
+      offset,
+    };
+
+    setCache(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    logger.error('GET /analytics/wallet error', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch wallet history' });
+  }
+});
+
+// ── GET /analytics/token/:mint ────────────────────────────────────────────────
+// Token metadata from Jupiter.
+router.get('/token/:mint', async (req, res) => {
+  try {
+    const { mint } = req.params;
+    const meta = await tokenMetadata.get(mint);
+    if (!meta) return res.status(404).json({ error: 'Token not found' });
+    res.json({ mint, ...meta });
+  } catch (err) {
+    logger.error('GET /analytics/token error', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch token metadata' });
+  }
+});
+
+module.exports = router;
