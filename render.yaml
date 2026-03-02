@@ -3,9 +3,10 @@ services:
     name: solana-dexscreener-backend
     runtime: node
     plan: free
-    rootDir: solana-backend
-    buildCommand: npm install
-    startCommand: node src/server.js
+    # Build and start commands explicitly cd into the subdirectory.
+    # This works regardless of any "Root Directory" setting in the dashboard.
+    buildCommand: cd solana-backend && npm install
+    startCommand: cd solana-backend && node src/server.js
     envVars:
       - key: NODE_ENV
         value: production
