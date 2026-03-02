@@ -51,16 +51,38 @@ async function decodeAndStore(signature) {
 
 // ── POST /webhook/helius ──────────────────────────────────────────────────────
 router.post('/helius', async (req, res) => {
-  // 1. Validate secret header (optional but strongly recommended)
+  // 1. Validate secret header
+  //    Helius sends the secret in the "authorization" header as a raw string (no Bearer prefix).
+  //    We also accept x-webhook-secret for manual testing.
   const secret = process.env.WEBHOOK_SECRET;
   if (secret) {
-    const provided = req.headers['x-webhook-secret'] ||
-                     req.headers['authorization']?.replace('Bearer ', '');
+    // Collect every possible header variation Helius might use
+    const authHeader = req.headers['authorization'] || '';
+    const provided =
+      req.headers['x-webhook-secret'] ||          // manual curl testing
+      authHeader.replace(/^Bearer\s+/i, '') ||     // "Authorization: Bearer xyz"
+      authHeader ||                                // "Authorization: xyz" (raw — Helius default)
+      '';
+
+    // Debug log (masked): helps identify EXACTLY what Helius sends without exposing the secret
+    logger.info('Webhook auth debug', {
+      received_header_keys: Object.keys(req.headers).filter(h =>
+        ['authorization','x-webhook-secret','x-helius-secret'].includes(h)
+      ),
+      provided_masked: provided ? `${provided.slice(0,4)}...${provided.slice(-4)}` : '(empty)',
+      expected_masked: `${secret.slice(0,4)}...${secret.slice(-4)}`,
+      match: provided === secret,
+    });
+
     if (provided !== secret) {
       logger.warn('Webhook: rejected request — invalid secret');
       return res.status(401).json({ error: 'Unauthorized' });
     }
+  } else {
+    // No secret configured — allow all (log a reminder)
+    logger.warn('WEBHOOK_SECRET not set — accepting all webhook requests. Set it in Render env vars.');
   }
+
 
   // 2. Validate payload shape
   const events = Array.isArray(req.body) ? req.body : [req.body];
