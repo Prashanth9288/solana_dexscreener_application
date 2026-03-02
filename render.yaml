@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: solana-dexscreener-backend
+    runtime: node
+    plan: free
+    rootDir: solana-backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    autoDeploy: true
+    healthCheckPath: /health
