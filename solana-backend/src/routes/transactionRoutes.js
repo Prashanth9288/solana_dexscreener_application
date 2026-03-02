@@ -8,21 +8,60 @@ const DBBatcher = require("../services/dbBatcher");
 
 const router = express.Router();
 
-// ── SOL Price Cache (Non-blocking 30s poll) ──────────────────────────────────
+// ── SOL Price Cache — Multi-source resilient feed ─────────────────────────────
+// Cascade: Jupiter → CoinGecko → Binance. First success wins.
+// Why: Binance blocks many cloud IPs. Jupiter is most reliable from Render.
 let cachedSolPrice = null;
+let solPriceSource = 'none';
+
+const SOL_PRICE_SOURCES = [
+  {
+    name: 'Jupiter',
+    url: 'https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112',
+    extract: (data) => {
+      const p = data?.data?.['So11111111111111111111111111111111111111112']?.price;
+      return p ? parseFloat(p) : null;
+    },
+  },
+  {
+    name: 'CoinGecko',
+    url: 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+    extract: (data) => data?.solana?.usd ?? null,
+  },
+  {
+    name: 'Binance',
+    url: 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT',
+    extract: (data) => (data?.price ? parseFloat(data.price) : null),
+  },
+];
+
 async function updateSolPrice() {
-  try {
-    const response = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT");
-    const data = await response.json();
-    if (data && data.price) {
-      cachedSolPrice = parseFloat(data.price);
+  for (const source of SOL_PRICE_SOURCES) {
+    try {
+      const response = await fetch(source.url, { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) continue;
+      const data = await response.json();
+      const price = source.extract(data);
+      if (price && price > 0 && isFinite(price)) {
+        cachedSolPrice = price;
+        if (solPriceSource !== source.name) {
+          logger.info(`SOL price source: ${source.name} ($${price.toFixed(2)})`);
+          solPriceSource = source.name;
+        }
+        return; // success — stop cascade
+      }
+    } catch (err) {
+      // Silently fall through to next source
     }
-  } catch (error) {
-    logger.warn("Failed to fetch SOL price from Binance", { error: error.message });
   }
+  logger.warn('All SOL price sources failed — keeping previous value', {
+    cached: cachedSolPrice,
+  });
 }
+
+// Fetch immediately on boot, then poll every 15s
 updateSolPrice();
-setInterval(updateSolPrice, 30000);
+setInterval(updateSolPrice, 15000);
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SOL_MINT = "So11111111111111111111111111111111111111112";
