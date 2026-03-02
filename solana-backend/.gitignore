@@ -5,21 +5,33 @@ node_modules/
 .env
 .env.local
 .env.development
+.env.staging
 .env.production
 
 # Logs
 logs/
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Runtime
+# Runtime data
 pids/
 *.pid
+*.seed
 
 # Build output
 dist/
 build/
 
+# Debug / test artifacts
+tx_*.json
+*.debug.json
+
 # OS files
 .DS_Store
 Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
