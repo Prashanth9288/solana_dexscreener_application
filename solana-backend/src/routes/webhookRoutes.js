@@ -1,25 +1,48 @@
 // src/routes/webhookRoutes.js
-// Helius Enhanced Webhook listener.
-// Helius sends POST requests to this endpoint with parsed transaction data.
+// Helius Enhanced Webhook listener — production-hardened.
 //
-// Setup in Helius dashboard:
-//   Webhook URL: https://<your-render-url>/webhook/helius
-//   Secret:      Set WEBHOOK_SECRET env var in Render; paste same value in Helius dashboard.
-//
-// Helius payload format: Array of enhanced transaction objects.
-// Docs: https://docs.helius.dev/webhooks-and-websockets/enhanced-transactions-api/webhooks
+// Key design principles:
+//   1. Respond 200 immediately (Helius requires < 5s response time).
+//   2. Decode signatures through a CONCURRENCY-LIMITED internal queue (max 3 at a time).
+//      This prevents the thundering-herd that trips the RPC circuit breaker.
+//   3. Validate authorization header (set WEBHOOK_SECRET in Render env vars).
 
 const express = require('express');
-const { fetchWithRetry } = require('../utils/rpcClient');
 const logger  = require('../utils/logger');
-const DBBatcher = require('../services/dbBatcher');
+const router  = express.Router();
 
-const router = express.Router();
+// ── Concurrency-limited async queue ──────────────────────────────────────────
+// Processes decode jobs at most CONCURRENCY at a time.
+// Prevents hammering the RPC when Helius sends a batch of 100+ transactions.
+const CONCURRENCY = 3;     // max parallel decode calls
+const QUEUE_CAP   = 5000;  // drop oldest when queue overflows
 
-// ── Shared decode pipeline (mirrors transactionRoutes.js core logic) ──────────
-// We re-use the same route handler by forwarding to an internal HTTP call.
-// This avoids duplicating 700+ lines — the decode POST /transaction is canonical.
-// We call it via a lightweight internal fetch against localhost.
+const pendingJobs = [];
+let activeWorkers = 0;
+
+function enqueue(signature) {
+  if (pendingJobs.length >= QUEUE_CAP) {
+    logger.warn(`Webhook queue full (${QUEUE_CAP}) — dropping oldest job`);
+    pendingJobs.shift();
+  }
+  pendingJobs.push(signature);
+  drainQueue();
+}
+
+function drainQueue() {
+  while (activeWorkers < CONCURRENCY && pendingJobs.length > 0) {
+    const signature = pendingJobs.shift();
+    activeWorkers++;
+    decodeAndStore(signature).finally(() => {
+      activeWorkers--;
+      drainQueue(); // pick up next job when a slot frees
+    });
+  }
+}
+
+// ── Internal decode call ──────────────────────────────────────────────────────
+// Routes each signature through the existing /transaction decode pipeline.
+// Using a local HTTP call keeps the 12-layer decode logic in one canonical place.
 async function decodeAndStore(signature) {
   try {
     const port = process.env.PORT || 5000;
@@ -29,7 +52,7 @@ async function decodeAndStore(signature) {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ signature }),
-      signal:  AbortSignal.timeout(15000),
+      signal:  AbortSignal.timeout(20000), // longer timeout for RPC retries
     });
 
     if (!res.ok) {
@@ -39,10 +62,10 @@ async function decodeAndStore(signature) {
     }
 
     const data = await res.json();
-    if (data && data.processed) {
-      logger.info(`Webhook: decoded swap for ${signature}`, { dex: data.dex, wallet: data.wallet });
+    if (data?.processed) {
+      logger.info(`Webhook: decoded swap`, { sig: signature.slice(0, 16) + '...', dex: data.dex });
     } else {
-      logger.info(`Webhook: non-swap tx ${signature}`, { message: data.message });
+      logger.info(`Webhook: non-swap tx`, { sig: signature.slice(0, 16) + '...', msg: data.message });
     }
   } catch (err) {
     logger.error(`Webhook decode error for ${signature}: ${err.message}`);
@@ -51,65 +74,57 @@ async function decodeAndStore(signature) {
 
 // ── POST /webhook/helius ──────────────────────────────────────────────────────
 router.post('/helius', async (req, res) => {
-  // 1. Validate secret header
-  //    Helius sends the secret in the "authorization" header as a raw string (no Bearer prefix).
-  //    We also accept x-webhook-secret for manual testing.
+  // 1. Validate secret header.
+  //    Helius sends the secret in the "authorization" header as a raw string.
   const secret = process.env.WEBHOOK_SECRET;
   if (secret) {
-    // Collect every possible header variation Helius might use
     const authHeader = req.headers['authorization'] || '';
     const provided =
-      req.headers['x-webhook-secret'] ||          // manual curl testing
-      authHeader.replace(/^Bearer\s+/i, '') ||     // "Authorization: Bearer xyz"
-      authHeader ||                                // "Authorization: xyz" (raw — Helius default)
+      req.headers['x-webhook-secret'] ||
+      authHeader.replace(/^Bearer\s+/i, '') ||
+      authHeader ||
       '';
 
-    // Debug log (masked): helps identify EXACTLY what Helius sends without exposing the secret
-    logger.info('Webhook auth debug', {
-      received_header_keys: Object.keys(req.headers).filter(h =>
-        ['authorization','x-webhook-secret','x-helius-secret'].includes(h)
-      ),
-      provided_masked: provided ? `${provided.slice(0,4)}...${provided.slice(-4)}` : '(empty)',
-      expected_masked: `${secret.slice(0,4)}...${secret.slice(-4)}`,
-      match: provided === secret,
-    });
-
     if (provided !== secret) {
-      logger.warn('Webhook: rejected request — invalid secret');
+      logger.warn('Webhook: rejected — invalid secret');
       return res.status(401).json({ error: 'Unauthorized' });
     }
-  } else {
-    // No secret configured — allow all (log a reminder)
-    logger.warn('WEBHOOK_SECRET not set — accepting all webhook requests. Set it in Render env vars.');
   }
 
-
-  // 2. Validate payload shape
+  // 2. Validate payload shape.
   const events = Array.isArray(req.body) ? req.body : [req.body];
   if (events.length === 0) {
     return res.status(400).json({ error: 'Empty payload' });
   }
 
-  // 3. Respond immediately — Helius requires a fast 200 OK
-  //    Decoding happens asynchronously; Helius won't wait for it.
-  res.status(200).json({ received: events.length, status: 'queued' });
+  // 3. Respond immediately — Helius won't wait beyond 5s.
+  res.status(200).json({
+    received: events.length,
+    queued:   events.length,
+    workers:  activeWorkers,
+    backlog:  pendingJobs.length,
+    status:   'queued',
+  });
 
-  // 4. Extract signatures and fire async decode pipeline
+  // 4. Extract signatures → push to rate-limited queue (never fires 100 at once).
+  let queued = 0;
   for (const event of events) {
     const signature =
-      event.signature      ||   // Standard Helius enhanced tx
-      event.transaction?.signatures?.[0] ||  // Raw transaction format
-      event.txnSignature   ||   // Some legacy formats
+      event.signature                        ||
+      event.transaction?.signatures?.[0]     ||
+      event.txnSignature                     ||
       null;
 
     if (!signature) {
-      logger.warn('Webhook event missing signature', { keys: Object.keys(event) });
+      logger.warn('Webhook event missing signature', { keys: Object.keys(event).slice(0, 10) });
       continue;
     }
+    enqueue(signature);
+    queued++;
+  }
 
-    // Rate-limit: stagger decodes by 200ms to not hammer the RPC
-    const delay = events.indexOf(event) * 200;
-    setTimeout(() => decodeAndStore(signature), delay);
+  if (queued > 0) {
+    logger.info(`Webhook: queued ${queued} signatures (active workers: ${activeWorkers}, backlog: ${pendingJobs.length})`);
   }
 });
 

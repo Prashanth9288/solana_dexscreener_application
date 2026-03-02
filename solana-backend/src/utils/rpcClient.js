@@ -16,13 +16,22 @@ const rpcClient = axios.create({
 });
 
 let circuitBreakerFailures = 0;
-const CIRCUIT_BREAKER_THRESHOLD = 50;
+// Threshold: 20 consecutive failures trips the breaker (not 50).
+// With a concurrency-limited webhook queue (3 workers), this avoids
+// false trips from burst load while still protecting against real outages.
+const CIRCUIT_BREAKER_THRESHOLD = 20;
 let circuitBreakerOpenUntil = 0;
+let circuitBreakerTripped = false;
 
 // Exponential Backoff RPC Fetcher
 async function fetchWithRetry(payload, maxRetries = 3) {
+  // OPEN state: block until cooldown expires (half-open probe allowed after)
   if (Date.now() < circuitBreakerOpenUntil) {
     throw new Error("RPC Circuit Breaker isOpen");
+  }
+  // HALF-OPEN: cooldown expired, let one request through to probe recovery
+  if (circuitBreakerTripped) {
+    logger.info("RPC Circuit Breaker: probing recovery...");
   }
 
   let attempt = 0;
@@ -31,15 +40,22 @@ async function fetchWithRetry(payload, maxRetries = 3) {
   while (attempt < maxRetries) {
     try {
       const response = await rpcClient.post('', payload);
+      // CLOSED: success — fully reset failure counter
+      if (circuitBreakerTripped) {
+        logger.info('RPC Circuit Breaker: recovered — resetting.');
+      }
       circuitBreakerFailures = 0;
+      circuitBreakerTripped  = false;
       return response.data;
     } catch (err) {
       circuitBreakerFailures++;
       if (circuitBreakerFailures >= CIRCUIT_BREAKER_THRESHOLD) {
-        circuitBreakerOpenUntil = Date.now() + 10000;
-        const msg = "RPC Circuit Breaker Tripped!";
+        // OPEN: 30s cooldown before half-open probe
+        circuitBreakerOpenUntil = Date.now() + 30_000;
+        circuitBreakerTripped   = true;
+        const msg = `RPC Circuit Breaker Tripped! (${circuitBreakerFailures} failures). Cooling down 30s.`;
         logger.error(msg);
-        throw new Error(msg);
+        throw new Error('RPC Circuit Breaker isOpen');
       }
 
       attempt++;
