@@ -284,4 +284,79 @@ router.get('/token/:mint', async (req, res) => {
   }
 });
 
+// ── GET /analytics/ohlcv ──────────────────────────────────────────────────────
+// Server-side OHLCV aggregation for TradingView charts.
+// Query: ?base_token=...&quote_token=...&timeframe=5m&limit=500
+router.get('/ohlcv', async (req, res) => {
+  try {
+    const { base_token, quote_token, timeframe = '15m' } = req.query;
+    const limit = Math.min(parseInt(req.query.limit || '500', 10), 1500);
+
+    if (!base_token || !quote_token) {
+      return res.status(400).json({ error: 'base_token and quote_token are required' });
+    }
+
+    // Map string timeframes to Postgres interval intervals
+    const intervalMap = {
+      '1m':  "1 minute",
+      '5m':  "5 minutes",
+      '15m': "15 minutes",
+      '30m': "30 minutes",
+      '1h':  "1 hour",
+      '4h':  "4 hours",
+      '1d':  "1 day"
+    };
+    
+    const intervalExpr = intervalMap[timeframe] || "15 minutes";
+
+    const cacheKey = `ohlcv:${base_token}:${quote_token}:${timeframe}:${limit}`;
+    const cached = getCache(cacheKey);
+    if (cached) return res.json(cached);
+
+    // Postgres date_bin() perfectly aligns time buckets for financial OHLCV aggregation
+    const rows = await query(
+      `WITH buckets AS (
+         SELECT 
+           date_bin('${intervalExpr}', block_time, '2000-01-01') AS bucket_time,
+           price_usd,
+           usd_value
+         FROM swaps
+         WHERE base_token = $1 AND quote_token = $2
+      ),
+      aggregated AS (
+        SELECT 
+           bucket_time,
+           FIRST_VALUE(price_usd) OVER (PARTITION BY bucket_time ORDER BY bucket_time) as open,
+           MAX(price_usd) OVER (PARTITION BY bucket_time) as high,
+           MIN(price_usd) OVER (PARTITION BY bucket_time) as low,
+           LAST_VALUE(price_usd) OVER (PARTITION BY bucket_time ORDER BY bucket_time RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as close,
+           SUM(usd_value) OVER (PARTITION BY bucket_time) as volume
+        FROM buckets
+      )
+      SELECT DISTINCT bucket_time AS time, open, high, low, close, volume 
+      FROM aggregated
+      ORDER BY time DESC
+      LIMIT $3`,
+      [base_token, quote_token, limit]
+    );
+
+    // Frontend TradingView expects ascending strictly ordered timeline (oldest to newest)
+    const formatted = rows.reverse().map(r => ({
+      time:   new Date(r.time).getTime() / 1000,
+      open:   parseFloat(r.open),
+      high:   parseFloat(r.high),
+      low:    parseFloat(r.low),
+      close:  parseFloat(r.close),
+      value:  parseFloat(r.volume)
+    }));
+
+    const result = { data: formatted };
+    setCache(cacheKey, result); // TTL is 10s by default from LRU definition
+    res.json(result);
+  } catch (err) {
+    logger.error('GET /analytics/ohlcv error', { error: err.message });
+    res.status(500).json({ error: 'Failed to aggregate OHLCV' });
+  }
+});
+
 module.exports = router;

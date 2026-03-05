@@ -100,6 +100,8 @@ async function fetchTokenList() {
     } catch (err) {
       logger.warn(`Failed to fetch Jupiter token list: ${err.message}`);
       if (!tokenListMap) tokenListMap = new Map();
+      // CRITICAL FIX: Even on failure, update listFetchedAt so we don't spam 15s timeouts
+      listFetchedAt = Date.now();
     } finally {
       fetchInFlight = null;
     }

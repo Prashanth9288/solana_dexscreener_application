@@ -1,12 +1,20 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { resolve } from "path";
 
 const BACKEND_URL = process.env.VITE_API_URL || "https://solana-dexscreener-application-3.onrender.com";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(), 
+    tailwindcss(),
+    nodePolyfills({
+      include: ["buffer", "crypto", "stream", "util"],
+      globals: { Buffer: true }
+    })
+  ],
   resolve: {
     alias: {
       "@": resolve(__dirname, "src"),
