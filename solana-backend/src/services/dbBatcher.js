@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const logger = require('../utils/logger');
+const wsBroadcaster = require('./wsService');
 
 let decodeQueue = [];
 let isProcessing = false;
@@ -83,6 +84,12 @@ class DBBatcher {
             `;
 
             await client.query(query, flatParams);
+
+            // ── BROADCAST TO WEBSOCKET CLIENTS ──
+            if (wsBroadcaster.clientCount() > 0) {
+              // The frontend useTradeBatcher expects { data: [...] }
+              wsBroadcaster.broadcast({ type: 'trades', data: chunk });
+            }
           }
           await client.query("COMMIT");
           logger.info(`Successfully batched ${batch.length} rows into database.`);
