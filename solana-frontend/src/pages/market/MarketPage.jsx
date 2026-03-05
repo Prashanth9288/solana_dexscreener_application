@@ -49,6 +49,7 @@ function MarketPage() {
           setBackendOnline(true);
         }
       } else {
+        if (pairsRes.reason?.name === 'AbortError') return; // Ignore cancellations
         console.warn('[MarketPage] pairs fetch failed:', pairsRes.reason?.message);
         setLoading(false);
         setBackendOnline(false);

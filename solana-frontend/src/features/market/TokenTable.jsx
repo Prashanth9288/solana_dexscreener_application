@@ -129,11 +129,13 @@ function SortHeader({ label, field, sortBy, sortDir, toggleSort, align = 'right'
    MAIN TABLE
    ═══════════════════════════════════════════════════════════════════ */
 function TokenTable() {
-  const { pairs, loading, activeDex, sortBy, sortDir, toggleSort } = useMarketStore(
+  const { pairs, loading, activeDex, activeFilter, activeTimeframe, sortBy, sortDir, toggleSort } = useMarketStore(
     useShallow(s => ({
       pairs: s.pairs,
       loading: s.loading,
       activeDex: s.activeDex,
+      activeFilter: s.activeFilter,
+      activeTimeframe: s.activeTimeframe,
       sortBy: s.sortBy,
       sortDir: s.sortDir,
       toggleSort: s.toggleSort
@@ -144,19 +146,61 @@ function TokenTable() {
 
   const filteredPairs = useMemo(() => {
     let list = [...pairs];
+    
+    // 1. DEX Matcher (Case-insensitive literal match)
     if (activeDex !== 'all') {
       list = list.filter(p => {
         const d = (p.dex || p.base_token_meta?.source || '').toLowerCase();
+        // The user clicked e.g 'raydium' or 'pump.fun'
         return d.includes(activeDex.toLowerCase());
       });
     }
+
+    // 2. Determine effective sorting column based on Pill Filters
+    let effectiveSortBy = sortBy;
+    let effectiveSortDir = sortDir;
+
+    // Only apply macro-filters if the user hasn't explicitly sorted a specific column
+    // For simplicity, we override the default 'total_volume_usd' with macro filters.
+    if (sortBy === 'total_volume_usd') {
+      switch (activeFilter) {
+        case 'trending': 
+          effectiveSortBy = 'trade_count'; 
+          effectiveSortDir = 'desc'; 
+          break;
+        case 'top': 
+          effectiveSortBy = 'total_volume_usd'; 
+          effectiveSortDir = 'desc'; 
+          break;
+        case 'gainers': 
+          effectiveSortBy = `change_${activeTimeframe}`; 
+          effectiveSortDir = 'desc'; 
+          break;
+        case 'new': 
+          effectiveSortBy = 'last_trade_at'; 
+          effectiveSortDir = 'desc'; 
+          break;
+        default:
+          break;
+      }
+    }
+
+    // 3. Execution
     list.sort((a, b) => {
-      const aVal = Number(a[sortBy]) || 0;
-      const bVal = Number(b[sortBy]) || 0;
-      return sortDir === 'desc' ? bVal - aVal : aVal - bVal;
+      // Fallback block_time if last_trade_at is missing for age sorting
+      if (effectiveSortBy === 'last_trade_at' || effectiveSortBy === 'created_at') {
+         const aTime = new Date(a.last_trade_at || a.created_at || a.block_time || 0).getTime();
+         const bTime = new Date(b.last_trade_at || b.created_at || b.block_time || 0).getTime();
+         return effectiveSortDir === 'desc' ? bTime - aTime : aTime - bTime;
+      }
+
+      const aVal = Number(a[effectiveSortBy]) || 0;
+      const bVal = Number(b[effectiveSortBy]) || 0;
+      return effectiveSortDir === 'desc' ? bVal - aVal : aVal - bVal;
     });
+
     return list;
-  }, [pairs, activeDex, sortBy, sortDir]);
+  }, [pairs, activeDex, activeFilter, activeTimeframe, sortBy, sortDir]);
 
   // Ultra-fast virtualization logic
   const rowVirtualizer = useVirtualizer({

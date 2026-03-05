@@ -1,62 +1,219 @@
 /**
- * wsService.js — Production WebSocket Broadcaster
+ * wsService.js — Production WebSocket + Redis Pub/Sub Broadcaster
  *
- * Singleton WebSocket server attached to the Express HTTP server.
- * Broadcasts decoded trade events to all connected frontend clients.
- *
- * Usage:
- *   const wsBroadcaster = require('./wsService');
- *   wsBroadcaster.broadcast({ type: 'trade', data: tradeObject });
- *
- * Clients subscribe by sending:
- *   { type: 'subscribe', channel: 'trades' }
+ * Architecture:
+ *   - Frontend sends: { action: 'subscribe', channel: 'trades:<mint_address>' }
+ *   - Server subscribes to Redis on first client per channel. Multiple clients → single Redis sub.
+ *   - Redis delivers payload → server routes only to subscribing clients.
+ *   - Dead socket detection via 30s ping/pong heartbeat.
+ *   - On disconnect: channel map cleaned up. Last subscriber → Redis auto-unsubscribe.
+ *   - Falls back to monolithic broadcast if Redis is not configured.
  */
 
 const { WebSocketServer, WebSocket } = require('ws');
+const { getSubscriber } = require('../config/redisClient');
 const logger = require('../utils/logger');
 
 let wss = null;
 
-/**
- * Attach the WebSocket server to the existing HTTP server instance.
- * Call this once in server.js after `app.listen()`.
- * @param {http.Server} httpServer
- */
-function attach(httpServer) {
-  wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+// channel -> Set<WebSocket> — routes Redis channel to subscribing clients
+const channelClients = new Map();
 
-  logger.info('[WS] WebSocket server attached on path /ws');
+// WebSocket -> Set<string> — tracks channels each connected client has subscribed to
+const clientChannels = new Map();
+
+// Heartbeat constants
+const HEARTBEAT_INTERVAL_MS = 30_000; // 30s ping interval
+const HEARTBEAT_TIMEOUT_MS  = 10_000; // 10s before declaring a socket dead
+
+let redisSubscriberBound = false;
+let heartbeatTimer = null;
+
+// ─── CHANNEL VALIDATION ─────────────────────────────────────────────────────
+// Prevent clients from subscribing to arbitrary internal Redis keys.
+const VALID_CHANNEL_PREFIX = /^trades:[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+function isValidChannel(channel) {
+  return typeof channel === 'string' && VALID_CHANNEL_PREFIX.test(channel);
+}
+
+// ─── REDIS SUBSCRIBER BINDING ────────────────────────────────────────────────
+// Called on attach() and lazily when the Redis subscriber reconnects.
+function bindRedisSubscriber() {
+  const sub = getSubscriber();
+  if (!sub || redisSubscriberBound) return;
+  redisSubscriberBound = true;
+
+  sub.on('message', (channel, message) => {
+    const subscribers = channelClients.get(channel);
+    if (!subscribers || subscribers.size === 0) return;
+
+    let sent = 0;
+    let failed = 0;
+    for (const ws of subscribers) {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(message); // message is pre-serialized JSON from the publisher
+          sent++;
+        } catch (err) {
+          logger.warn(`[WS/Redis] send error on channel=${channel}: ${err.message}`);
+          failed++;
+        }
+      }
+    }
+    if (sent > 0) logger.debug(`[WS/Redis] channel=${channel} → ${sent} clients sent, ${failed} failed`);
+  });
+
+  // If the subscriber reconnects, it loses all Redis subscriptions — re-subscribe all
+  sub.on('ready', () => {
+    const channels = [...channelClients.keys()];
+    if (channels.length > 0) {
+      logger.info(`[WS/Redis] Subscriber reconnected — re-subscribing ${channels.length} channel(s)`);
+      sub.subscribe(...channels).catch(err =>
+        logger.error(`[WS/Redis] Re-subscribe failed: ${err.message}`)
+      );
+    }
+  });
+
+  sub.on('error', (err) => {
+    logger.warn(`[WS/Redis] Subscriber error: ${err.message}`);
+    // On reconnect, the 'ready' event will re-subscribe channels
+  });
+}
+
+// ─── CHANNEL SUBSCRIPTION ────────────────────────────────────────────────────
+function subscribeClientToChannel(ws, channel) {
+  if (!isValidChannel(channel)) {
+    logger.warn(`[WS] Rejected invalid channel subscription: "${channel}"`);
+    safeSend(ws, { type: 'error', message: `Invalid channel: ${channel}` });
+    return;
+  }
+
+  const sub = getSubscriber();
+
+  if (!channelClients.has(channel)) {
+    channelClients.set(channel, new Set());
+    // First subscriber — tell Redis to begin delivering messages for this channel
+    if (sub) {
+      sub.subscribe(channel, (err) => {
+        if (err) logger.warn(`[WS/Redis] subscribe failed: ${channel}: ${err.message}`);
+        else     logger.debug(`[WS/Redis] Redis SUBSCRIBE → ${channel}`);
+      });
+    }
+  }
+
+  channelClients.get(channel).add(ws);
+
+  if (!clientChannels.has(ws)) clientChannels.set(ws, new Set());
+  clientChannels.get(ws).add(channel);
+
+  safeSend(ws, { type: 'subscribed', channel });
+}
+
+// ─── CLIENT CLEANUP ──────────────────────────────────────────────────────────
+function cleanupClient(ws) {
+  const channels = clientChannels.get(ws);
+  if (!channels) return;
+
+  const sub = getSubscriber();
+
+  for (const channel of channels) {
+    const subs = channelClients.get(channel);
+    if (subs) {
+      subs.delete(ws);
+      if (subs.size === 0) {
+        channelClients.delete(channel);
+        if (sub) {
+          sub.unsubscribe(channel).catch(() => {});
+          logger.debug(`[WS/Redis] Redis UNSUBSCRIBE → ${channel} (no listeners remaining)`);
+        }
+      }
+    }
+  }
+
+  clientChannels.delete(ws);
+}
+
+// ─── HEARTBEAT (DEAD SOCKET DETECTION) ──────────────────────────────────────
+// The browser's TCP stack can keep a socket open even after the user closes
+// the tab. Without a heartbeat, dead sockets accumulate in channelClients.
+function startHeartbeat() {
+  heartbeatTimer = setInterval(() => {
+    if (!wss) return;
+    for (const ws of wss.clients) {
+      if (ws.isAlive === false) {
+        // Socket failed to respond to last ping → terminate
+        logger.warn('[WS/Heartbeat] Dead socket detected — terminating');
+        cleanupClient(ws);
+        ws.terminate();
+        continue;
+      }
+      ws.isAlive = false;
+      ws.ping();
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  if (heartbeatTimer.unref) heartbeatTimer.unref(); // Don't prevent Node process exit
+}
+
+// ─── ATTACH ──────────────────────────────────────────────────────────────────
+function attach(httpServer) {
+  wss = new WebSocketServer({
+    server: httpServer,
+    path: '/ws',
+    // Reject messages > 64KB to prevent heap bombs
+    maxPayload: 64 * 1024,
+  });
+
+  bindRedisSubscriber();
+  startHeartbeat();
+
+  logger.info('[WS] WebSocket server attached on /ws');
 
   wss.on('connection', (socket, req) => {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    logger.info(`[WS] Client connected: ${ip} (total: ${wss.clients.size})`);
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+    logger.info(`[WS] Connected: ${ip} (total: ${wss.clients.size})`);
 
-    // Send a welcome packet so the frontend knows connection succeeded
+    socket.isAlive = true;
+    socket.on('pong', () => { socket.isAlive = true; }); // Heartbeat response
+
+    // Welcome packet for frontend connection detection
     safeSend(socket, { type: 'connected', message: 'Solana DEX Terminal WebSocket ready' });
 
     socket.on('message', (raw) => {
+      // Guard: raw must be a string/Buffer, max 1KB
+      if (Buffer.byteLength(raw) > 1024) {
+        logger.warn(`[WS] Oversized message from ${ip} — ignoring`);
+        return;
+      }
       try {
         const msg = JSON.parse(raw.toString());
-        logger.debug(`[WS] Message from ${ip}: ${JSON.stringify(msg)}`);
 
-        // Acknowledge subscription requests
-        if (msg.type === 'subscribe') {
-          safeSend(socket, { type: 'subscribed', channel: msg.channel });
+        // Production handshake: { action: 'subscribe', channel: 'trades:MINT' }
+        if (msg.action === 'subscribe' && msg.channel) {
+          subscribeClientToChannel(socket, msg.channel);
+          return;
         }
-        if (msg.type === 'ping') {
+        // Legacy compatibility
+        if (msg.type === 'subscribe' && msg.channel) {
+          subscribeClientToChannel(socket, msg.channel);
+          return;
+        }
+        if (msg.type === 'ping' || msg.action === 'ping') {
           safeSend(socket, { type: 'pong' });
         }
       } catch {
-        // ignore malformed messages
+        // Ignore malformed JSON
       }
     });
 
-    socket.on('close', () => {
-      logger.info(`[WS] Client disconnected: ${ip} (remaining: ${wss.clients.size})`);
+    socket.on('close', (code, reason) => {
+      cleanupClient(socket);
+      logger.info(`[WS] Disconnected: ${ip} (code=${code}, remaining: ${wss.clients.size})`);
     });
 
     socket.on('error', (err) => {
-      logger.warn(`[WS] Client error: ${err.message}`);
+      logger.warn(`[WS] Socket error from ${ip}: ${err.message}`);
     });
   });
 
@@ -65,30 +222,29 @@ function attach(httpServer) {
   });
 }
 
-/**
- * Broadcast a JSON payload to ALL connected WebSocket clients.
- * Silently skips clients that aren't in OPEN state.
- * @param {object} payload
- */
+// ─── GLOBAL BROADCAST (FALLBACK / ANNOUNCEMENTS) ─────────────────────────────
 function broadcast(payload) {
   if (!wss || wss.clients.size === 0) return;
-
   const raw = JSON.stringify(payload);
   let sent = 0;
-
   for (const client of wss.clients) {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(raw);
-      sent++;
+      try { client.send(raw); sent++; } catch { /* ignore */ }
     }
   }
+  if (sent > 0) logger.debug(`[WS] Broadcast → ${sent} client(s): ${payload.type}`);
+}
 
-  if (sent > 0) {
-    logger.debug(`[WS] Broadcast to ${sent} client(s): ${payload.type}`);
+// ─── GRACEFUL SHUTDOWN ───────────────────────────────────────────────────────
+function close() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (wss) {
+    for (const ws of wss.clients) ws.terminate();
+    wss.close(() => logger.info('[WS] Server closed.'));
   }
 }
 
-/** Safe-send helper — swallows send errors on already-closed sockets */
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 function safeSend(socket, payload) {
   try {
     if (socket.readyState === WebSocket.OPEN) {
@@ -97,9 +253,8 @@ function safeSend(socket, payload) {
   } catch { /* ignore */ }
 }
 
-/** Returns current connected client count */
 function clientCount() {
   return wss ? wss.clients.size : 0;
 }
 
-module.exports = { attach, broadcast, clientCount };
+module.exports = { attach, broadcast, close, clientCount };

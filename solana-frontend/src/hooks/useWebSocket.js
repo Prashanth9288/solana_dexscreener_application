@@ -1,92 +1,140 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { getRecentTrades } from '../services/api';
 
 /**
- * useWebSocket — Manages connection to the Render backend WebSocket.
- * 
+ * useWebSocket — Production-grade Redis Pub/Sub WebSocket client
+ *
  * Features:
- * - Auto-reconnect with backoff
- * - Channel subscription handling
- * - Clean cleanup on unmount
- * 
- * @param {string} channel - The channel to subscribe to (e.g. 'trades:all' or 'trades:<address>')
- * @param {function} onMessage - Callback for incoming parsed messages
- * @param {boolean} enabled - Whether to connect (used to pause until token data loads)
+ *  - Sends { action: 'subscribe', channel: 'trades:<mint>' } handshake on connect
+ *  - Exponential backoff reconnection (1s → 30s cap)
+ *  - Missed-tick recovery: fetches /analytics/recent on reconnect
+ *  - Auto-resubscribes all channels after a reconnect
+ *  - Clean cleanup on component unmount
+ *
+ * @param {string|string[]} channels  e.g. 'trades:EPjFW...' or ['trades:A', 'trades:B']
+ * @param {function}        onMessage Callback for incoming parsed messages
+ * @param {boolean}         enabled   Whether to connect at all
  */
-export function useWebSocket(channel, onMessage, enabled = true) {
+export function useWebSocket(channels, onMessage, enabled = true) {
   const [connected, setConnected] = useState(false);
-  const wsRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const backoffRef = useRef(1000);
+
+  const wsRef                = useRef(null);
+  const reconnectTimerRef    = useRef(null);
+  const backoffRef           = useRef(1000);
+  const enabledRef           = useRef(enabled);
+  const channelsRef          = useRef(null);
+  const onMessageRef         = useRef(onMessage);
+  const lastDisconnectTimeRef = useRef(null);
+  const mountedRef           = useRef(true);
+
+  // Keep refs always fresh — avoids stale closures in callbacks
+  enabledRef.current  = enabled;
+  onMessageRef.current = onMessage;
+
+  // Normalize to array
+  const normalizedChannels = Array.isArray(channels)
+    ? channels
+    : channels
+    ? [channels]
+    : [];
+  channelsRef.current = normalizedChannels;
+
+  // Build WebSocket URL
+  const getWsUrl = useCallback(() => {
+    let base = import.meta.env.VITE_WS_URL ||
+      `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+    return base.endsWith('/ws') ? base : `${base}/ws`;
+  }, []);
+
+  // Missed-Tick Recovery: fetch recent trades since disconnect
+  const recoverMissedTrades = useCallback(async () => {
+    if (!lastDisconnectTimeRef.current) return;
+    try {
+      const result = await getRecentTrades(50);
+      if (result?.data && onMessageRef.current) {
+        onMessageRef.current({ type: 'trades', data: result.data, source: 'recovery' });
+      }
+    } catch {
+      // Non-fatal: live stream will catch up
+    } finally {
+      lastDisconnectTimeRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
-    if (!enabled || !channel) return;
+    mountedRef.current = true;
+    if (!enabled || normalizedChannels.length === 0) return;
 
     function connect() {
-      // Get base URL from env or fallback to current host
-      let baseWsUrl = import.meta.env.VITE_WS_URL || 
-        `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+      // Cancel any pending reconnect timer
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
 
-      // Ensure the URL ends with the /ws path required by the backend
-      const wsUrl = baseWsUrl.endsWith('/ws') ? baseWsUrl : `${baseWsUrl}/ws`;
-
-      console.log(`[WS] Connecting to ${wsUrl}...`);
+      const wsUrl = getWsUrl();
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[WS] Connected');
-        setConnected(true);
-        backoffRef.current = 1000; // Reset backoff
+        if (!mountedRef.current) { ws.close(); return; }
 
-        // Subscribe to standard generic trade broadcast
-        ws.send(JSON.stringify({ type: 'subscribe', channel: 'trades' }));
-        // Legacy support if specific channel passed
-        if (channel && channel !== 'trades') {
-           ws.send(JSON.stringify({ type: 'subscribe', channel }));
+        setConnected(true);
+        backoffRef.current = 1000; // Reset backoff on successful connection
+
+        // Production Handshake: subscribe to every requested Redis channel
+        for (const channel of channelsRef.current) {
+          ws.send(JSON.stringify({ action: 'subscribe', channel }));
         }
+
+        // Recover any trades missed while the socket was down
+        recoverMissedTrades();
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          
-          // Only forward matching trade types
-          if (data.type === 'trades' || data.type === 'trade') {
-            if (onMessage) onMessage(data);
+          if ((data.type === 'trades' || data.type === 'trade') && onMessageRef.current) {
+            onMessageRef.current(data);
           }
-        } catch (err) {
-          console.warn('[WS] Failed to parse message', err);
+        } catch {
+          // ignore malformed frames
         }
       };
 
       ws.onclose = () => {
-        console.log('[WS] Disconnected');
+        if (!mountedRef.current) return;
+
         setConnected(false);
         wsRef.current = null;
+        lastDisconnectTimeRef.current = Date.now();
 
-        // Auto-reconnect with exponential backoff
-        if (enabled) {
-          console.log(`[WS] Reconnecting in ${backoffRef.current}ms...`);
-          reconnectTimeoutRef.current = setTimeout(connect, backoffRef.current);
+        if (enabledRef.current) {
+          const delay = backoffRef.current;
+          // Exponential backoff capped at 30 seconds
           backoffRef.current = Math.min(backoffRef.current * 1.5, 30000);
+          reconnectTimerRef.current = setTimeout(connect, delay);
         }
       };
 
-      ws.onerror = (err) => {
-        console.error('[WS] Connection error', err);
-        // Let onclose handle the reconnect
+      ws.onerror = () => {
+        // onclose will fire next and handle reconnect
       };
     }
 
     connect();
 
     return () => {
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      mountedRef.current = false;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (wsRef.current) {
         wsRef.current.close();
+        wsRef.current = null;
       }
     };
-  }, [channel, enabled, onMessage]);
+  // Only reconnect when the channel list or enabled flag changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, channels]);
 
   return { connected };
 }

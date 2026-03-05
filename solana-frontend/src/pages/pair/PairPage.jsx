@@ -82,6 +82,7 @@ function PairPage() {
 
           setTrades(allTrades);
           updateMetrics(allTrades);
+          useAppStore.getState().setBackendOnline(true);
 
           // Detect DEX from trades if not from metadata
           if (allTrades[0]?.dex) setDex(allTrades[0].dex);
@@ -101,7 +102,10 @@ function PairPage() {
           }
         }
       } catch (err) {
-        if (err.name !== 'AbortError') console.error('Pair hydration:', err);
+        if (err.name !== 'AbortError') {
+          console.error('Pair hydration:', err);
+          useAppStore.getState().setBackendOnline(false);
+        }
       } finally {
         setPairLoading(false);
         setChartLoading(false);
@@ -123,14 +127,19 @@ function PairPage() {
   }, [timeframe, setCandles]);
 
   // ── WebSocket real-time streaming ──
-  const wsChannel = baseToken ? `trades:${baseToken}` : null;
+  // Subscribe to both token channels: trades fired on either side of the pair land here
+  const wsChannels = [
+    baseToken  ? `trades:${baseToken}`  : null,
+    quoteToken ? `trades:${quoteToken}` : null,
+  ].filter(Boolean);
+
   const queueTrade = useTradeBatcher(100); // 100ms throttle buffer
 
   const handleWsTrade = useCallback((msg) => {
     queueTrade(msg);
   }, [queueTrade]);
 
-  const { connected: wsConnected } = useWebSocket(wsChannel, handleWsTrade, !!baseToken);
+  const { connected: wsConnected } = useWebSocket(wsChannels, handleWsTrade, wsChannels.length > 0);
 
   // ── HTTP Polling fallback (only when WS is disconnected) ──
   const poll = useCallback(async () => {

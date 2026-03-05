@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const logger = require('../utils/logger');
 const wsBroadcaster = require('./wsService');
+const { getPublisher } = require('../config/redisClient');
 
 let decodeQueue = [];
 let isProcessing = false;
@@ -85,9 +86,49 @@ class DBBatcher {
 
             await client.query(query, flatParams);
 
-            // ── BROADCAST TO WEBSOCKET CLIENTS ──
-            if (wsBroadcaster.clientCount() > 0) {
-              // The frontend useTradeBatcher expects { data: [...] }
+            // ── BROADCAST (REDIS PUB/SUB OR LOCAL FALLBACK) ──
+            // getPublisher() is resolved once at module load — no hot-require
+            const publisher = getPublisher();
+
+            if (publisher && publisher.status === 'ready') {
+              const grouped = {};
+              for (const row of chunk) {
+                // Build microscopic, frontend-ready payload only for valid mints
+                const baseOk  = row.base_token  && row.base_token  !== 'undefined' && row.base_token  !== 'null';
+                const quoteOk = row.quote_token && row.quote_token !== 'undefined' && row.quote_token !== 'null';
+                if (!baseOk && !quoteOk) continue;
+
+                const miniTrade = {
+                  signature:   row.signature,
+                  price_usd:   row.price_usd,
+                  usd_value:   row.usd_value,
+                  base_token:  row.base_token,
+                  quote_token: row.quote_token,
+                  base_amount: row.base_amount,
+                  swap_side:   row.swap_side,
+                  block_time:  row.block_time,
+                  dex:         row.dex,
+                  wallet:      row.wallet
+                };
+
+                const addToGroup = (chan) => {
+                  if (!grouped[chan]) grouped[chan] = [];
+                  grouped[chan].push(miniTrade);
+                };
+                if (baseOk)  addToGroup(`trades:${row.base_token}`);
+                if (quoteOk) addToGroup(`trades:${row.quote_token}`);
+              }
+
+              // Batch publish: one Redis call per unique channel, not per trade
+              const publishPromises = Object.entries(grouped).map(([channel, trades]) =>
+                publisher.publish(channel, JSON.stringify({ type: 'trades', data: trades }))
+                  .catch(err => logger.warn(`[Redis] Publish failed [${channel}]: ${err.message}`))
+              );
+              // Non-blocking: don't stall DB transaction on Redis latency
+              Promise.allSettled(publishPromises);
+
+            } else if (wsBroadcaster.clientCount() > 0) {
+              // Fallback: monolithic WS broadcast when Redis is offline
               wsBroadcaster.broadcast({ type: 'trades', data: chunk });
             }
           }

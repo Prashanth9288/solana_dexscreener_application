@@ -129,6 +129,7 @@ router.get('/pairs', async (req, res) => {
     const rows = await query(
       `SELECT
          base_token, quote_token,
+         MAX(dex)                    AS dex,
          COUNT(*)                    AS trade_count,
          COALESCE(SUM(usd_value), 0) AS total_volume_usd,
          COALESCE(AVG(price_usd), 0) AS avg_price_usd,
@@ -146,6 +147,7 @@ router.get('/pairs', async (req, res) => {
     const meta  = await tokenMetadata.getBatch(mints);
     const enriched = rows.map(r => ({
       ...r,
+      dex:              r.dex,
       trade_count:      parseInt(r.trade_count, 10),
       total_volume_usd: parseFloat(r.total_volume_usd),
       avg_price_usd:    parseFloat(parseFloat(r.avg_price_usd).toFixed(8)),

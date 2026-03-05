@@ -9,6 +9,7 @@ const DBBatcher         = require("./services/dbBatcher");
 const wsBroadcaster     = require("./services/wsService");
 const pool              = require("./config/db");
 const initDb            = require("./config/initDb");
+const { initRedis, closeRedis } = require("./config/redisClient");
 const logger            = require("./utils/logger");
 
 const app = express();
@@ -45,7 +46,8 @@ const PORT = process.env.PORT || 5000;
 async function start() {
   try {
     await initDb();
-    logger.info("Database schema initialized.");
+    initRedis();
+    logger.info("Database and Redis initialized.");
   } catch (dbErr) {
     logger.warn(`DB init failed (will retry on next query): ${dbErr.message}`);
   }
@@ -62,16 +64,29 @@ async function start() {
 
   // ── Graceful Shutdown ─────────────────────────────────────────────────────
   async function shutdown(signal) {
-    logger.warn(`[Server] ${signal} received — shutting down...`);
+    logger.warn(`[Server] ${signal} received — initiating graceful shutdown...`);
+
+    // Hard-kill guard: if shutdown takes > 10s, force exit (prevents Render hangs)
+    const hardKill = setTimeout(() => {
+      logger.error('[Server] Shutdown timed out after 10s — forcing exit');
+      process.exit(1);
+    }, 10_000);
+    if (hardKill.unref) hardKill.unref();
+
+    // 1. Stop accepting new HTTP connections
     server.close(async () => {
-      try { await DBBatcher.flushAndClose(); } catch { /* ignore */ }
-      try { await pool.end(); } catch { /* ignore */ }
+      try { wsBroadcaster.close();            } catch { /* ignore */ }
+      try { await DBBatcher.flushAndClose();  } catch { /* ignore */ }
+      try { await closeRedis();               } catch { /* ignore */ }
+      try { await pool.end();                 } catch { /* ignore */ }
+      clearTimeout(hardKill);
+      logger.info('[Server] Shutdown complete. Goodbye.');
       process.exit(0);
     });
   }
 
-  process.on("SIGINT",  () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on('SIGINT',  () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
 start().catch((err) => {
