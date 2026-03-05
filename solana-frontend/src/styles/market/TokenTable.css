@@ -1,0 +1,97 @@
+@reference '../../index.css';
+
+.token-table-header-wrapper {
+  @apply sticky top-0 bg-[#0b0e14] z-20 w-full border-b border-[#1b2233];
+}
+
+.token-table-header-grid {
+  @apply grid items-center text-[10px] font-bold text-[#6b758c] tracking-wider uppercase h-10 border-b border-[#1b2233];
+}
+
+.token-table-header-cell {
+  @apply px-3 py-2 whitespace-nowrap;
+}
+
+.token-table-header-sortable {
+  @apply cursor-pointer hover:text-[#f0f3fa] transition-colors;
+}
+
+.token-table-body-wrapper {
+  @apply flex-1 overflow-x-auto overflow-y-auto bg-[#0b0e14] relative w-full;
+}
+
+.token-table-row {
+  @apply grid items-center hover:bg-[#111827] border-b border-[#1b2233] transition-colors duration-150 cursor-pointer min-w-max;
+}
+
+.token-table-cell {
+  @apply px-3 py-2;
+}
+
+.token-table-cell-token {
+  @apply px-3 py-2 flex items-center gap-2 overflow-hidden;
+}
+
+.token-table-cell-rank {
+  @apply text-[11px] text-[#6b758c] font-mono shrink-0 text-center w-[20px];
+}
+
+.token-table-cell-logo {
+  @apply w-7 h-7 rounded-full bg-[#1a2235] flex items-center justify-center overflow-hidden shrink-0 ml-1;
+}
+
+.token-table-cell-logo-img {
+  @apply w-full h-full object-cover;
+}
+
+.token-table-cell-logo-fallback {
+  @apply text-[10px] font-bold text-gray-400;
+}
+
+.token-table-cell-info {
+  @apply flex flex-col min-w-0 ml-1;
+}
+
+.token-table-cell-info-top {
+  @apply flex items-center gap-1.5;
+}
+
+.token-table-cell-symbol {
+  @apply text-[13px] font-medium text-[#f0f3fa] truncate;
+}
+
+.token-table-cell-quote {
+  @apply text-[11px] font-medium text-[#6b758c] shrink-0;
+}
+
+.token-table-cell-name {
+  @apply text-[11px] text-[#8b99b0] truncate mt-[1px];
+}
+
+.token-table-cell-numeric {
+  @apply text-right font-medium text-[#f0f3fa] tabular-nums font-mono whitespace-nowrap text-[13px];
+}
+
+.token-table-cell-price {
+  @apply text-right font-medium text-[#16c784] tabular-nums font-mono whitespace-nowrap text-[13px];
+}
+
+.token-table-empty {
+  @apply flex items-center justify-center p-12 text-sm text-[#6b758c];
+}
+
+.token-table-skeleton-row {
+  @apply grid items-center border-b border-[#1b2233];
+}
+
+.token-table-cell-change-empty {
+  @apply text-[#6b758c] tabular-nums font-mono text-right;
+}
+
+.token-table-cell-change {
+  @apply px-3 py-2 text-right whitespace-nowrap text-[13px];
+}
+
+.token-table-body-inner {
+  min-width: 1050px;
+}

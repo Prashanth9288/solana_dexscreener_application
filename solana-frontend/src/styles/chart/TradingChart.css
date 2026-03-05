@@ -1,0 +1,178 @@
+/* TradingChart.css — plain CSS, no @apply */
+
+.chart-container-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background-color: #0b0e14;
+  position: relative;
+}
+
+/* ── Timeframe Bar ── */
+.chart-timeframe-bar {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid #1e2433;
+  background-color: #10141f;
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 2px;
+}
+.chart-timeframe-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.chart-timeframe-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+  white-space: nowrap;
+}
+
+.chart-timeframe-btn-active {
+  color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.chart-timeframe-btn-inactive {
+  color: #8b99b0;
+}
+
+.chart-timeframe-btn-inactive:hover {
+  color: #f0f3fa;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.chart-timeframe-spacer {
+  flex: 1;
+  min-width: 12px;
+}
+
+.chart-toolbar-divider {
+  width: 1px;
+  height: 14px;
+  background-color: #2a2e39;
+  margin: 0 8px;
+  flex-shrink: 0;
+}
+
+.chart-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.chart-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  color: #f0f3fa;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  white-space: nowrap;
+}
+.chart-toolbar-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.chart-toolbar-btn.text-blue {
+  color: #3b82f6;
+}
+
+.chart-toolbar-text-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  color: #f0f3fa;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  white-space: nowrap;
+}
+.chart-toolbar-text-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.chart-toolbar-text-btn.text-blue {
+  color: #3b82f6;
+}
+
+/* ── Chart Canvas ── */
+.chart-wrapper {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  min-height: 0;
+  background-color: #0a0d12;
+}
+
+.chart-canvas-container {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── Loading Overlay ── */
+.chart-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(10, 13, 18, 0.8);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+.chart-loading-spinner-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.chart-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.chart-loading-text {
+  color: #8b99b0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}

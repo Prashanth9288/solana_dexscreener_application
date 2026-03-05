@@ -1,0 +1,9 @@
+@reference '../../index.css';
+.network-banner {
+  @apply flex items-center justify-center gap-2 px-4 py-1.5 bg-yellow/10 border-b border-yellow/20 text-yellow text-xs font-medium;
+  animation: slide-down 0.15s ease-out forwards;
+}
+
+.network-banner-icon {
+  @apply w-3.5 h-3.5;
+}

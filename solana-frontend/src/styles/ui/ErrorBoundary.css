@@ -1,0 +1,21 @@
+@reference '../../index.css';
+.error-boundary-container {
+  @apply flex flex-col items-center justify-center p-6 bg-bg-card rounded-lg border border-border-primary gap-3 min-h-[120px];
+}
+
+.error-boundary-icon {
+  @apply w-8 h-8 text-yellow;
+}
+
+.error-boundary-text {
+  @apply text-text-secondary text-xs text-center max-w-[200px];
+}
+
+.error-boundary-retry-btn {
+  @apply flex items-center gap-1.5 px-3 py-1.5 bg-bg-elevated rounded-md border border-border-primary text-text-primary text-xs hover:bg-bg-hover transition-colors;
+}
+
+.error-boundary-retry-icon {
+  @apply w-3 h-3;
+}
+

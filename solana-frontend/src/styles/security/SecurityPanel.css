@@ -1,0 +1,47 @@
+@reference '../../index.css';
+.security-status-row {
+  @apply flex items-center justify-between px-3 py-2 hover:bg-bg-hover transition-colors;
+}
+
+.security-status-label {
+  @apply text-[10px] text-text-muted;
+}
+
+.security-status-info {
+  @apply flex items-center gap-1.5;
+}
+
+.security-status-detail {
+  @apply text-[9px] text-text-muted font-mono;
+}
+
+.security-status-badge {
+  @apply flex items-center gap-1 px-1.5 py-0.5 rounded;
+.security-header-title-container {
+  @apply flex items-center gap-1.5;
+}
+
+.security-header-title {
+  @apply text-[11px] font-semibold text-text-primary;
+}
+
+.security-score-badge {
+  @apply flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold;
+}
+
+.security-loading-container {
+  @apply p-3 flex items-center justify-center gap-2;
+}
+
+.security-loading-text {
+  @apply text-[10px] text-text-muted;
+}
+
+.security-content-list {
+  @apply divide-y divide-border-primary;
+}
+
+.security-external-link {
+  @apply flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] text-blue hover:text-blue/80 transition-colors;
+}
+

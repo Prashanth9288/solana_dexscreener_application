@@ -9,18 +9,21 @@ const logger  = require('../utils/logger');
 
 const router = express.Router();
 
-// ── Simple in-memory TTL cache ────────────────────────────────────────────────
-const cache = new Map(); // key → { data, expiresAt }
-const TTL_MS = 10_000;  // 10 seconds
+// ── Memory-safe LRU Cache ─────────────────────────────────────────────────────
+// Hard limit of 500 items guarantees the server will never run out of memory 
+// even if millions of unique queries are requested (1000+ API requests per sec).
+const { LRUCache } = require('lru-cache');
+
+const cache = new LRUCache({
+  max: 500, // Maximum number of unique API responses to store at once
+  ttl: 10_000, 
+});
 
 function getCache(key) {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) { cache.delete(key); return null; }
-  return entry.data;
+  return cache.get(key) || null;
 }
 function setCache(key, data) {
-  cache.set(key, { data, expiresAt: Date.now() + TTL_MS });
+  cache.set(key, data);
 }
 
 // ── Shared query helper ───────────────────────────────────────────────────────

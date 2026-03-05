@@ -1,30 +1,41 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
+const cors    = require("cors");
 
 const transactionRoutes = require("./routes/transactionRoutes");
 const analyticsRoutes   = require("./routes/analyticsRoutes");
 const webhookRoutes     = require("./routes/webhookRoutes");
-const DBBatcher  = require("./services/dbBatcher");
-const pool       = require("./config/db");
-const initDb     = require("./config/initDb");
-const logger     = require("./utils/logger");
+const DBBatcher         = require("./services/dbBatcher");
+const wsBroadcaster     = require("./services/wsService");
+const pool              = require("./config/db");
+const initDb            = require("./config/initDb");
+const logger            = require("./utils/logger");
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+// ── CORS — allow all origins (frontend on Render / Vite dev) ─────────────────
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'] }));
+app.use(express.json({ limit: '10mb' }));
 
-// ── Routes ────────────────────────────────────────────────────────────────────
+// ── HTTP Routes ───────────────────────────────────────────────────────────────
 app.use("/transaction", transactionRoutes);
 app.use("/analytics",   analyticsRoutes);
 app.use("/webhook",     webhookRoutes);
 
-app.get("/health", (req, res) => {
+app.get("/health", async (req, res) => {
+  let dbStatus = 'unknown';
+  try {
+    await pool.query('SELECT 1');
+    dbStatus = 'connected';
+  } catch {
+    dbStatus = 'disconnected';
+  }
   res.json({
-    status: "OK",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
+    status:     "OK",
+    db:         dbStatus,
+    ws_clients: wsBroadcaster.clientCount(),
+    uptime:     process.uptime(),
+    timestamp:  new Date().toISOString(),
   });
 });
 
@@ -32,35 +43,29 @@ app.get("/health", (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 async function start() {
-  // Initialize DB schema before accepting traffic
-  await initDb();
+  try {
+    await initDb();
+    logger.info("Database schema initialized.");
+  } catch (dbErr) {
+    logger.warn(`DB init failed (will retry on next query): ${dbErr.message}`);
+  }
 
   const server = app.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
+    logger.info(`🚀 Server running on port ${PORT}`);
   });
 
-  // ── Graceful Shutdown Handler ───────────────────────────────────────────────
+  // ── WebSocket Server on /ws ───────────────────────────────────────────────
+  // Attach AFTER app.listen() so httpServer exists.
+  // Frontend connects to: wss://solana-dexscreener-application-3.onrender.com/ws
+  wsBroadcaster.attach(server);
+  logger.info("📡 WebSocket server attached on /ws");
+
+  // ── Graceful Shutdown ─────────────────────────────────────────────────────
   async function shutdown(signal) {
-    logger.warn(`[Server] Received ${signal}. Initiating graceful shutdown...`);
-
-    server.close(async (err) => {
-      if (err) logger.error(`[Server] Error closing Express: ${err.message}`);
-      else logger.info(`[Server] Express closed. Flushing remaining tasks.`);
-
-      try {
-        await DBBatcher.flushAndClose();
-      } catch (queueErr) {
-        logger.error(`[Server] Failed to flush final batch: ${queueErr.message}`);
-      }
-
-      try {
-        await pool.end();
-        logger.info(`[Server] Database pool closed successfully.`);
-      } catch (dbErr) {
-        logger.error(`[Server] Failed to close DB pool: ${dbErr.message}`);
-      }
-
-      logger.info(`[Server] Process cleanly exited.`);
+    logger.warn(`[Server] ${signal} received — shutting down...`);
+    server.close(async () => {
+      try { await DBBatcher.flushAndClose(); } catch { /* ignore */ }
+      try { await pool.end(); } catch { /* ignore */ }
       process.exit(0);
     });
   }

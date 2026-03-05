@@ -34,15 +34,32 @@ const CREATE_SWAPS_TABLE = `
 `;
 
 const CREATE_INDEXES = [
-  `CREATE INDEX IF NOT EXISTS idx_swaps_wallet     ON swaps(wallet);`,
-  `CREATE INDEX IF NOT EXISTS idx_swaps_dex        ON swaps(dex);`,
-  `CREATE INDEX IF NOT EXISTS idx_swaps_base_token ON swaps(base_token);`,
+  // Fast wallet history lookups (sorted by time natively)
+  `CREATE INDEX IF NOT EXISTS idx_swaps_wallet_time ON swaps(wallet, block_time DESC);`,
+  
+  // Fast trading pair lookups (the core DexScreener feature)
+  `CREATE INDEX IF NOT EXISTS idx_swaps_pair_time ON swaps(base_token, quote_token, block_time DESC);`,
+  
+  // Fast DEX specific volume calculations
+  `CREATE INDEX IF NOT EXISTS idx_swaps_dex_time ON swaps(dex, block_time DESC);`,
+  
+  // For the /recent feed
   `CREATE INDEX IF NOT EXISTS idx_swaps_block_time ON swaps(block_time DESC);`,
-  `CREATE INDEX IF NOT EXISTS idx_swaps_usd_value  ON swaps(usd_value DESC NULLS LAST);`,
+  
+  // For largest trades finding
+  `CREATE INDEX IF NOT EXISTS idx_swaps_usd_value ON swaps(usd_value DESC NULLS LAST);`,
 ];
 
 async function initDb() {
-  const client = await pool.connect();
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (connErr) {
+    logger.warn(`Cannot connect to database: ${connErr.message}`);
+    logger.warn('DB schema initialization skipped — will retry on next startup.');
+    return; // Don't crash, just skip initialization
+  }
+
   try {
     await client.query('BEGIN');
     await client.query(CREATE_SWAPS_TABLE);
@@ -52,9 +69,8 @@ async function initDb() {
     await client.query('COMMIT');
     logger.info('DB initialized — swaps table and indexes ready.');
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch { /* ignore rollback errors */ }
     logger.error(`DB initialization failed: ${err.message}`);
-    // Don't crash — server can still run without DB for health checks
   } finally {
     client.release();
   }

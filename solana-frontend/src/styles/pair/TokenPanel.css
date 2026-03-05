@@ -1,0 +1,81 @@
+@reference '../../index.css';
+
+.token-panel-wrapper {
+  @apply bg-[#10141f] border-l border-[#1e2433] shrink-0 flex flex-col w-[380px] h-full;
+}
+
+.token-panel-identity-block {
+  @apply px-4 py-3 bg-[#131722];
+}
+
+.token-panel-title-row {
+  @apply flex items-center gap-2;
+}
+
+.token-panel-logo-container {
+  @apply w-6 h-6 rounded-full bg-[#1a2235] flex items-center justify-center overflow-hidden shrink-0;
+}
+
+.token-panel-title {
+  @apply text-base font-bold text-[#f0f3fa];
+}
+
+.token-panel-route-row {
+  @apply flex items-center leading-none mt-1.5;
+}
+
+.token-panel-symbol {
+  @apply text-[12px] font-bold text-[#f0f3fa] tracking-tight;
+}
+
+.token-panel-qsymbol {
+  @apply text-[12px] font-medium text-[#8b99b0] ml-0.5;
+}
+
+.token-panel-banner-container {
+  @apply w-full h-[90px] relative bg-[#10141f] p-3 flex flex-col items-center justify-center border-b border-[#1e2433];
+}
+
+.token-panel-banner-placeholder {
+  @apply absolute inset-0 bg-cover bg-center opacity-40;
+}
+
+.token-panel-social-btn {
+  @apply z-10 flex items-center gap-1.5 px-4 py-1.5 bg-[#1e2433] border border-[rgba(255,255,255,0.05)] rounded text-[11px] font-bold text-[#f0f3fa] transition-colors hover:bg-[#2b3346] shadow-sm mt-auto;
+}
+
+.token-panel-price-cards {
+  @apply grid grid-cols-2 bg-[#10141f] border-b border-[#1e2433];
+}
+
+.token-panel-price-col {
+  @apply flex flex-col items-center justify-center py-4 bg-[#131722];
+}
+
+.token-panel-metrics-grid {
+  @apply grid grid-cols-3 gap-px bg-[#1e2433] border-b border-[#1e2433];
+}
+
+.token-panel-metric-cell {
+  @apply bg-[#10141f] flex flex-col items-center justify-center py-3;
+}
+
+.token-panel-metric-label {
+  @apply text-[10px] text-[#6b758c] uppercase tracking-wider leading-none mb-1.5 font-bold;
+}
+
+.token-panel-metric-value-mono {
+  @apply text-[13px] text-[#f0f3fa] font-mono font-bold leading-tight;
+}
+
+.token-panel-action-btn {
+  @apply flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-md text-[11px] font-bold text-[#f0f3fa] transition-colors hover:bg-[rgba(255,255,255,0.08)];
+}
+
+.token-panel-loading-container {
+  @apply bg-[#10141f] border-l border-[#1e2433] p-3 shrink-0 flex flex-col w-[380px] h-full;
+}
+
+.token-panel-skeleton-line {
+  @apply h-6 w-32 bg-[#1e2433] rounded animate-pulse;
+}

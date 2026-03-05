@@ -1,0 +1,69 @@
+@reference '../../index.css';
+
+.pair-top-header {
+  @apply flex items-center px-4 py-3 bg-[#10141f] w-full h-[64px];
+}
+
+.pair-top-header-loading {
+  @apply px-4 py-3 bg-[#10141f] h-[64px] flex items-center;
+}
+
+.pair-top-skeleton {
+  @apply h-8 w-48 bg-[#1e2433] rounded animate-pulse;
+}
+
+.pair-top-identity {
+  @apply flex items-center gap-3;
+}
+
+.pair-top-logo-wrap {
+  @apply w-[36px] h-[36px] rounded-full bg-[#1a2235] border border-[#1e2433] flex items-center justify-center overflow-hidden shrink-0;
+}
+
+.pair-top-logo {
+  @apply w-full h-full object-cover;
+}
+
+.pair-top-logo-fallback {
+  @apply text-xs font-bold text-[#6b758c];
+}
+
+.pair-top-info-stack {
+  @apply flex flex-col justify-center gap-1;
+}
+
+.pair-top-name-row {
+  @apply flex items-end gap-1.5 leading-none;
+}
+
+.pair-top-symbol {
+  @apply text-lg font-bold text-[#f0f3fa] tracking-tight;
+}
+
+.pair-top-qsymbol {
+  @apply text-[14px] font-medium text-[#8b99b0] mb-[2px];
+}
+
+.pair-top-name-badge {
+  @apply text-[12px] text-[#8b99b0] ml-1 mb-[2px];
+}
+
+.pair-top-route-row {
+  @apply flex items-center gap-1.5 leading-none;
+}
+
+.pair-top-network {
+  @apply text-[11px] font-medium text-[#8b99b0];
+}
+
+.pair-top-dex-source {
+  @apply text-[11px] font-bold px-1 py-[2px] rounded bg-[rgba(255,255,255,0.05)];
+}
+
+.pair-top-divider {
+  @apply w-1 h-1 rounded-full bg-[#1e2433] mx-1;
+}
+
+.pair-top-solscan-link {
+  @apply text-[#6b758c] hover:text-[#f0f3fa] transition-colors ml-1;
+}

@@ -1,0 +1,85 @@
+@reference '../../index.css';
+.searchbar-wrapper {
+  @apply relative flex items-center w-full max-w-[420px];
+}
+
+.searchbar-icon {
+  @apply absolute left-2.5 w-3.5 h-3.5 text-text-muted pointer-events-none z-10;
+}
+
+.searchbar-input {
+  @apply w-full h-8 pl-8 pr-7 bg-bg-elevated border border-border-primary rounded-md text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border-focus transition-colors;
+}
+
+.searchbar-spinner {
+  @apply absolute right-2 w-3 h-3 text-text-muted animate-spin;
+}
+
+.searchbar-clear-btn {
+  @apply absolute right-2 text-text-muted hover:text-text-secondary;
+}
+
+.searchbar-result-item-active {
+  @apply bg-bg-hover;
+}
+
+.searchbar-result-item-inactive {
+  @apply hover:bg-bg-elevated;
+}
+
+.searchbar-logo-img {
+  @apply w-6 h-6 rounded-full shrink-0 bg-bg-elevated;
+}
+
+.searchbar-logo-fallback {
+  @apply w-6 h-6 rounded-full bg-bg-elevated flex items-center justify-center shrink-0;
+}
+
+.searchbar-logo-fallback-icon {
+  @apply w-3 h-3 text-text-muted;
+}
+
+.searchbar-info-wrapper {
+  @apply flex-1 min-w-0;
+}
+
+.searchbar-info-header {
+  @apply flex items-center gap-1.5;
+}
+
+.searchbar-info-symbol {
+  @apply text-[11px] font-semibold text-text-primary truncate;
+}
+
+.searchbar-info-dex {
+  @apply text-[9px] px-1 py-0.5 rounded bg-bg-elevated text-text-muted font-medium;
+}
+
+.searchbar-info-type {
+  @apply text-[9px] px-1 py-0.5 rounded bg-blue/10 text-blue font-medium;
+}
+
+.searchbar-info-name {
+  @apply text-[10px] text-text-muted truncate block;
+}
+
+.searchbar-arrow-icon {
+  @apply w-3 h-3 text-text-muted shrink-0;
+}
+
+.searchbar-dropdown {
+  @apply absolute top-[calc(100%+4px)] left-0 right-0 max-h-[400px] overflow-y-auto bg-[#10141f] border border-[#1e2433] rounded-md shadow-xl z-50 py-1;
+}
+
+.searchbar-result-item {
+  @apply w-full flex items-center gap-3 px-3 py-2 text-left transition-colors;
+}
+
+.searchbar-no-results {
+  @apply absolute top-full left-0 right-0 mt-1 bg-[#10141f] border border-[#1e2433] rounded-lg shadow-xl z-50 p-4 text-center;
+}
+
+.searchbar-no-results-text {
+  @apply text-[11px] text-[#8b99b0];
+}
+

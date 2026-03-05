@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Dexscreener-Grade Terminal Design System (Tailwind CSS v4)
+   Strict 4px base spacing grid · True Institutional dark theme
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* ── Background Layers ──────────────────────────────────────────────── */
+  --color-bg-deepest: #0b0e14;   /* Classic terminal black */
+  --color-bg-base: #10141f;      /* Distinct separation from terminal background */
+  --color-bg-card: #131722;      /* TradingView style card */
+  --color-bg-elevated: #1e222d;  /* Interactive elements / inputs */
+  --color-bg-hover: #2a2e39;
+  --color-bg-active: #313543;
+
+  /* ── Borders ────────────────────────────────────────────────────────── */
+  --color-border-primary: #1e2433;  /* Subtle boundary mapping */
+  --color-border-secondary: #2a3143;
+  --color-border-focus: #3b82f6;
+
+  /* ── Text ────────────────────────────────────────────────────────────── */
+  --color-text-primary: #f0f3fa;
+  --color-text-secondary: #a9b1c2;
+  --color-text-muted: #6b758c;
+
+  /* ── Semantic ────────────────────────────────────────────────────────── */
+  --color-buy: #16c784;          /* Institutional trade green */
+  --color-buy-bg: rgba(22, 199, 132, 0.12);
+  --color-buy-border: rgba(22, 199, 132, 0.25);
+  
+  --color-sell: #ea3943;         /* Institutional trade red */
+  --color-sell-bg: rgba(234, 57, 67, 0.12);
+  --color-sell-border: rgba(234, 57, 67, 0.25);
+
+  --color-blue: #3b82f6;
+  --color-purple: #a855f7;
+  --color-yellow: #f5b028;
+  --color-orange: #f97316;
+  --color-cyan: #06b6d4;
+
+  /* ── Fonts ───────────────────────────────────────────────────────────── */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Base
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg-deepest);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  height: 100dvh;
+  line-height: 1.5;
+}
+
+#root {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Remove number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Scrollbar
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3143; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #6b758c; }
+
+.scroll-stable { scrollbar-gutter: stable; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Animations — Subtle & Institutional
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes fade-in-row {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes flash-green {
+  0%   { background: var(--color-buy-bg); }
+  100% { background: transparent; }
+}
+
+@keyframes flash-red {
+  0%   { background: var(--color-sell-bg); }
+  100% { background: transparent; }
+}
+
+@keyframes price-up {
+  0%   { color: var(--color-buy); text-shadow: 0 0 10px rgba(22, 199, 132, 0.4); }
+  100% { text-shadow: none; }
+}
+
+@keyframes price-down {
+  0%   { color: var(--color-sell); text-shadow: 0 0 10px rgba(234, 57, 67, 0.4); }
+  100% { text-shadow: none; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.anim-fade-in  { animation: fade-in-row 0.15s ease-out forwards; }
+.anim-flash-g  { animation: flash-green 0.8s ease-out forwards; }
+.anim-flash-r  { animation: flash-red 0.8s ease-out forwards; }
+.anim-price-up { animation: price-up 0.8s ease-out forwards; }
+.anim-price-dn { animation: price-down 0.8s ease-out forwards; }
+.anim-slide-dn { animation: slide-down 0.15s ease-out forwards; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Skeleton
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.skeleton {
+  background: linear-gradient(90deg,
+    var(--color-bg-elevated) 0px,
+    var(--color-bg-hover) 40px,
+    var(--color-bg-elevated) 80px
+  );
+  background-size: 200px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Utilities
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.table-fixed {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.text-xxs {
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.max-w-screen-hd {
+  max-width: 1600px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Wallet Adapter Override
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.wallet-adapter-button {
+  background: var(--color-bg-elevated) !important;
+  border: 1px solid var(--color-border-primary) !important;
+  border-radius: 6px !important;
+  font-family: var(--font-sans) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  height: 32px !important;
+  padding: 0 12px !important;
+  color: var(--color-text-primary) !important;
+  transition: all 0.15s ease !important;
+}
+.wallet-adapter-button:hover {
+  background: var(--color-bg-hover) !important;
+  border-color: var(--color-border-secondary) !important;
+}
+.wallet-adapter-modal-wrapper {
+  background: var(--color-bg-card) !important;
+  border: 1px solid var(--color-border-primary) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Pulse Dot (live indicator)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-buy);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+.pulse-dot--warn { background: var(--color-yellow); }
+.pulse-dot--off { background: var(--color-sell); animation: none; }

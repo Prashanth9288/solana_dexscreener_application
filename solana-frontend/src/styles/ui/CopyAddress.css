@@ -1,0 +1,13 @@
+@reference '../../index.css';
+.copy-address-btn {
+  @apply inline-flex items-center gap-1 text-text-muted hover:text-text-secondary transition-colors font-mono text-xs cursor-pointer;
+}
+
+.copy-address-icon-copied {
+  @apply w-3 h-3 text-buy shrink-0;
+}
+
+.copy-address-icon-default {
+  @apply w-3 h-3 shrink-0;
+}
+

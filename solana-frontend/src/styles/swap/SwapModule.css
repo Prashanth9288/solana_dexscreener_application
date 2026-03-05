@@ -1,0 +1,169 @@
+@reference '../../index.css';
+.swap-module-container {
+  @apply border-b border-border-primary;
+}
+
+.swap-tabs-wrapper {
+  @apply flex h-9 border-b border-border-primary;
+}
+
+.swap-tab-btn {
+  @apply flex-1 text-[11px] font-semibold transition-colors relative;
+}
+
+.swap-tab-btn.buy {
+  @apply text-buy;
+}
+
+.swap-tab-btn.buy-inactive {
+  @apply text-text-muted hover:text-text-secondary;
+}
+
+.swap-tab-indicator-buy {
+  @apply absolute bottom-0 inset-x-0 h-[2px] bg-buy;
+}
+
+.swap-tab-btn.sell {
+  @apply text-sell;
+}
+
+.swap-tab-btn.sell-inactive {
+  @apply text-text-muted hover:text-text-secondary;
+}
+
+.swap-tab-indicator-sell {
+  @apply absolute bottom-0 inset-x-0 h-[2px] bg-sell;
+}
+
+.swap-tab-divider {
+  @apply w-px bg-border-primary;
+}
+
+.swap-content-wrapper {
+  @apply p-3 flex flex-col gap-2.5;
+}
+
+.swap-input-header {
+  @apply flex items-center justify-between mb-1;
+}
+
+.swap-input-label {
+  @apply text-[10px] text-text-muted;
+}
+
+.swap-balance-text {
+  @apply text-text-muted text-[11px] cursor-pointer hover:text-text-secondary transition-colors;
+}
+
+.swap-loader-sm {
+  @apply w-3 h-3 text-text-muted animate-spin;
+}
+
+.swap-loader-md {
+  @apply w-4 h-4 text-current animate-spin;
+}
+
+.swap-wallet-icon {
+  @apply w-4 h-4;
+}
+
+.swap-settings-btn {
+  @apply text-text-muted hover:text-text-secondary transition-colors;
+}
+
+.swap-input-container {
+  @apply relative;
+}
+
+.swap-input-field {
+  @apply w-full h-9 px-3 pr-12 bg-bg-elevated border border-border-primary rounded-md text-[12px] font-mono text-text-primary focus:outline-none focus:border-border-focus transition-colors;
+}
+
+.swap-input-currency {
+  @apply absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-text-muted font-medium;
+}
+
+.swap-presets-grid {
+  @apply grid grid-cols-5 gap-1;
+}
+
+.swap-preset-btn {
+  @apply h-7 text-[10px] font-medium bg-bg-elevated border border-border-primary rounded text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors;
+}
+
+.swap-slippage-label {
+  @apply text-[10px] text-text-muted mb-1 block;
+}
+
+.swap-slippage-opts-wrapper {
+  @apply flex gap-1;
+}
+
+.swap-slippage-btn {
+  @apply flex-1 h-7 text-[10px] font-medium rounded transition-colors;
+}
+
+.swap-slippage-btn.active {
+  @apply bg-blue/15 text-blue border border-blue/25;
+}
+
+.swap-slippage-btn.inactive {
+  @apply bg-bg-elevated border border-border-primary text-text-secondary hover:bg-bg-hover;
+}
+
+.swap-quote-loading {
+  @apply px-3 py-2 bg-bg-elevated rounded-md border border-border-primary flex items-center justify-center gap-2;
+}
+
+.swap-quote-label {
+  @apply text-text-muted;
+}
+
+.swap-quote-value {
+  @apply text-text-primary font-mono font-medium;
+}
+
+.swap-quote-subrow {
+  @apply flex items-center justify-between text-[9px] mt-0.5 text-text-muted;
+}
+
+.swap-quote-details {
+  @apply mt-1 pt-1 border-t border-border-primary text-[9px] text-text-muted flex justify-between;
+}
+
+.swap-action-btn {
+  @apply w-full h-[44px] rounded-md text-[13px] font-bold tracking-wide transition-colors flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.swap-action-btn.buy {
+  @apply bg-buy text-[#0b0e14] hover:bg-[#12a16a];
+}
+
+.swap-action-btn.sell {
+  @apply bg-sell text-white hover:bg-[#c9323a];
+}
+
+.swap-quote-loading-text {
+  @apply text-[11px] text-[#8b99b0] font-medium;
+}
+
+.swap-quote-card {
+  @apply bg-[#10141f] border border-[#1e2433] rounded p-3 mt-1;
+}
+
+.swap-quote-row {
+  @apply flex items-center justify-between;
+}
+
+.swap-btn-submit {
+  @apply w-full h-[40px] rounded text-[12px] font-bold transition-colors flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.swap-btn-submit.buy {
+  @apply bg-[#16c784] text-[#0b0e14] hover:bg-[#12a16a];
+}
+
+.swap-btn-submit.sell {
+  @apply bg-[#ea3943] text-white hover:bg-[#c9323a];
+}
+

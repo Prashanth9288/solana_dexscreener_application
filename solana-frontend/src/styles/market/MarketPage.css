@@ -1,0 +1,5 @@
+@reference '../../index.css';
+
+.market-page-container {
+  @apply h-full flex flex-col min-h-0 bg-bg-base;
+}

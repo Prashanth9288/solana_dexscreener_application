@@ -1,0 +1,10 @@
+@reference '../../index.css';
+
+.right-sidebar {
+  @apply w-[300px] h-full bg-bg-base border-l border-border-primary flex-col shrink-0 hidden xl:flex;
+}
+
+.right-sidebar-scroll-area {
+  @apply flex-1 overflow-y-auto min-h-0 relative;
+  scrollbar-gutter: stable;
+}

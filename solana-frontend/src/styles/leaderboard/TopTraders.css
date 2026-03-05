@@ -1,0 +1,65 @@
+@reference '../../index.css';
+.top-traders-container {
+  @apply border-b border-border-primary;
+}
+
+.top-traders-header {
+  @apply flex items-center gap-1.5 px-3 py-2 border-b border-border-primary;
+}
+
+.top-traders-title {
+  @apply text-[11px] font-semibold text-text-primary;
+}
+
+.top-traders-subtitle {
+  @apply text-[9px] text-text-muted ml-auto;
+}
+
+.top-traders-loading {
+  @apply p-3 flex flex-col gap-2;
+}
+
+.top-traders-empty {
+  @apply px-3 py-6 text-center text-text-muted text-[10px];
+}
+
+.top-traders-list-wrapper {
+  @apply divide-y divide-border-primary;
+}
+
+.top-traders-list-item {
+  @apply flex items-center justify-between px-3 py-1.5 hover:bg-bg-hover transition-colors;
+}
+
+.top-traders-list-left {
+  @apply flex items-center gap-2;
+}
+
+.top-traders-rank {
+  @apply text-[10px] font-bold w-4 text-center;
+}
+
+.top-traders-rank-top {
+  @apply text-yellow;
+}
+
+.top-traders-rank-other {
+  @apply text-text-muted;
+}
+
+.top-traders-wallet-link {
+  @apply text-[10px] font-mono text-blue/80 hover:text-blue transition-colors;
+}
+
+.top-traders-list-right {
+  @apply flex items-center gap-2;
+}
+
+.top-traders-volume {
+  @apply text-[10px] font-mono font-medium text-text-primary;
+}
+
+.top-traders-tx-count {
+  @apply text-[9px] text-text-muted;
+}
+

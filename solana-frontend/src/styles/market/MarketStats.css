@@ -1,0 +1,51 @@
+@reference '../../index.css';
+.market-stats-container {
+  padding: 8px 16px;
+  background-color: #10141f;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  justify-content: center;
+}
+
+.market-stats-wrapper {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  height: 56px;
+  width: 100%;
+}
+
+.market-stats-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  padding: 16px 20px;
+  border: 1px solid #1e2433;
+  border-radius: 6px;
+  background-color: #131722;
+}
+
+.market-stats-label {
+  font-size: 10px;
+  color: #6b758c;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.market-stats-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fef3c7;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-stats-subtext {
+  font-size: 10px;
+  color: #6b758c;
+  font-weight: 500;
+  margin-left: 2px;
+}

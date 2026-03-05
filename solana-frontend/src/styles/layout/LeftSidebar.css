@@ -1,0 +1,372 @@
+@reference '../../index.css';
+.sidebar-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: #131722;
+  border-right: 1px solid #1e2433;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 50;
+}
+
+.sidebar-container.expanded {
+  width: 240px;
+}
+
+.sidebar-container.collapsed {
+  width: 56px;
+}
+
+.sidebar-logo-header {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.sidebar-logo-header.expanded {
+  padding: 0 16px;
+  justify-content: flex-start;
+}
+
+.sidebar-logo-header.collapsed {
+  padding: 0;
+  justify-content: center;
+}
+
+.sidebar-logo-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-logo-text {
+  font-weight: 800;
+  font-size: 16px;
+  color: #f0f3fa;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.sidebar-app-promo-wrapper {
+  flex-shrink: 0;
+}
+
+.sidebar-app-promo-wrapper.expanded {
+  padding: 16px;
+}
+
+.sidebar-app-promo-wrapper.collapsed {
+  padding: 16px 8px 8px 8px;
+}
+
+.sidebar-app-promo {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  background-color: #1e222d;
+  border-radius: 8px;
+  color: #f0f3fa;
+  cursor: pointer;
+  border: 1px solid #2a2e39;
+  white-space: nowrap;
+}
+
+.sidebar-app-promo.expanded {
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.sidebar-app-promo.collapsed {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar-app-promo-text {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sidebar-app-promo-icons {
+  display: flex;
+  gap: 6px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sidebar-nav.expanded {
+  padding: 8px 16px;
+}
+
+.sidebar-nav.collapsed {
+  padding: 8px;
+  align-items: center;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background-color: #1e2433;
+  margin: 4px 0;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sidebar-nav-item.expanded {
+  padding: 0 12px;
+  justify-content: flex-start;
+}
+
+.sidebar-nav-item.collapsed {
+  padding: 0;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.sidebar-nav-item.collapsed:hover {
+  background-color: #1e222d;
+}
+
+.sidebar-nav-item.active {
+  background-color: #1e222d;
+  color: #f0f3fa;
+}
+
+.sidebar-nav-item.inactive {
+  background-color: transparent;
+  color: #a9b1c2;
+}
+
+.sidebar-nav-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.sidebar-spacer {
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.sidebar-chains {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sidebar-chains.expanded {
+  padding: 0 16px;
+}
+
+.sidebar-chains.collapsed {
+  padding: 0 8px;
+  align-items: center;
+}
+
+.sidebar-chain-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sidebar-chain-item.expanded {
+  padding: 0 12px;
+  justify-content: flex-start;
+}
+
+.sidebar-chain-item.collapsed {
+  padding: 0;
+  justify-content: center;
+}
+
+.sidebar-chain-item.collapsed.active:hover {
+  background-color: #1e222d;
+}
+
+.sidebar-chain-item.active {
+  background-color: #1e222d;
+  cursor: pointer;
+  color: #f0f3fa;
+}
+
+.sidebar-chain-item.inactive {
+  background-color: transparent;
+  cursor: not-allowed;
+  color: #a9b1c2;
+}
+
+.sidebar-chain-icon {
+  flex-shrink: 0;
+}
+
+.sidebar-chain-icon.inactive {
+  filter: grayscale(100%) opacity(0.3);
+}
+
+.sidebar-flex-spacer {
+  flex: 1;
+}
+
+.sidebar-watchlist {
+  border-top: 1px solid #1e2433;
+  flex-shrink: 0;
+}
+
+.sidebar-watchlist.expanded {
+  padding: 16px;
+}
+
+.sidebar-watchlist.collapsed {
+  padding: 16px 8px;
+}
+
+.sidebar-watchlist-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar-watchlist-header.expanded {
+  justify-content: flex-start;
+  padding: 0 8px;
+  margin-bottom: 12px;
+}
+
+.sidebar-watchlist-header.collapsed {
+  justify-content: center;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.sidebar-watchlist-icon {
+  width: 14px;
+  height: 14px;
+  color: #f0f3fa;
+  fill: #f0f3fa;
+  flex-shrink: 0;
+}
+
+.sidebar-watchlist-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #f0f3fa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sidebar-watchlist-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 32px;
+  border-radius: 6px;
+  background-color: transparent;
+  border: none;
+  color: #a9b1c2;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sidebar-watchlist-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid #1e2433;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #a9b1c2;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sidebar-footer.expanded {
+  justify-content: flex-start;
+}
+
+.sidebar-footer.collapsed {
+  justify-content: center;
+}
+
+.sidebar-user-avatar {
+  border-radius: 50%;
+  background-color: #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-user-avatar.expanded {
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar-user-avatar.collapsed {
+  width: 24px;
+  height: 24px;
+}
+
+.sidebar-user-initial {
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.sidebar-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-user-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
