@@ -5,11 +5,13 @@ import NetworkBanner from '../components/ui/NetworkBanner';
 import '../styles/layout/AppShell.css';
 
 function AppShell({ children }) {
-  // Mobile/desktop sidebar states
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
 
   return (
-    <div className="app-shell-container">
+    <div 
+      className="app-shell-container"
+      style={{ gridTemplateColumns: `${sidebarExpanded ? '240px' : '56px'} 1fr` }}
+    >
       <NetworkBanner />
       
       <div className="app-shell-sidebar-wrapper">
@@ -23,13 +25,6 @@ function AppShell({ children }) {
       <main className="app-shell-main-content">
         {children}
       </main>
-      
-      {sidebarExpanded && (
-        <div 
-          className="app-shell-overlay"
-          onClick={() => setSidebarExpanded(false)}
-        />
-      )}
     </div>
   );
 }

@@ -1,39 +1,45 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Trophy } from 'lucide-react';
-import useTradeStore from '../../store/slices/useTradeStore';
+import usePairStore from '../../store/slices/usePairStore';
+import { getTopTraders } from '../../services/api';
 import { shortenAddress, formatUSD } from '../../utils/formatters';
 import { SOLSCAN_ACCOUNT_URL } from '../../constants';
 import { Skeleton } from '../../components/ui/Skeleton';
 import '../../styles/leaderboard/TopTraders.css';
 
 /**
- * TopTraders — derived from real trade data, no MOCK_TRADERS.
- * Aggregates trades by wallet and ranks by total volume.
+ * TopTraders — Fetches exact high-volume traders from the DB.
  */
 function TopTraders() {
-  const trades = useTradeStore((s) => s.trades);
-  const loading = useTradeStore((s) => s.loading);
+  const baseToken = usePairStore((s) => s.baseToken);
+  const [leaders, setLeaders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const abortRef = useRef(null);
 
-  const leaders = useMemo(() => {
-    if (!trades || trades.length === 0) return [];
+  useEffect(() => {
+    if (!baseToken) return;
+    
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-    const walletMap = {};
-    for (const t of trades) {
-      if (!t.wallet) continue;
-      if (!walletMap[t.wallet]) {
-        walletMap[t.wallet] = { wallet: t.wallet, volume: 0, buys: 0, sells: 0, trades: 0 };
-      }
-      const entry = walletMap[t.wallet];
-      entry.volume += Number(t.usd_value) || 0;
-      entry.trades += 1;
-      if (t.swap_side === 'buy') entry.buys += 1;
-      else entry.sells += 1;
-    }
+    setLoading(true);
+    getTopTraders(baseToken, 10, controller.signal)
+      .then(res => {
+        setLeaders(res.leaders || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (err.name !== 'AbortError') {
+          console.error("Failed to load top traders", err);
+          setLoading(false);
+        }
+      });
 
-    return Object.values(walletMap)
-      .sort((a, b) => b.volume - a.volume)
-      .slice(0, 10);
-  }, [trades]);
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, [baseToken]);
 
   return (
     <div className="top-traders-container">
@@ -43,7 +49,7 @@ function TopTraders() {
         <span className="top-traders-subtitle">by Vol</span>
       </div>
 
-      {loading && trades.length === 0 ? (
+      {loading ? (
         <div className="top-traders-loading">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} height="20px" width="100%" />)}
         </div>

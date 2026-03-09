@@ -7,6 +7,8 @@ const analyticsRoutes   = require("./routes/analyticsRoutes");
 const webhookRoutes     = require("./routes/webhookRoutes");
 const DBBatcher         = require("./services/dbBatcher");
 const wsBroadcaster     = require("./services/wsService");
+const candleEngine      = require("./services/candleEngine");
+const pairAggregator    = require("./services/pairAggregator");
 const pool              = require("./config/db");
 const initDb            = require("./config/initDb");
 const { initRedis, closeRedis } = require("./config/redisClient");
@@ -19,11 +21,11 @@ app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'] }));
 app.use(express.json({ limit: '10mb' }));
 
 // ── HTTP Routes ───────────────────────────────────────────────────────────────
-app.use("/transaction", transactionRoutes);
-app.use("/analytics",   analyticsRoutes);
-app.use("/webhook",     webhookRoutes);
+app.use("/api/transaction", transactionRoutes);
+app.use("/api/analytics",   analyticsRoutes);
+app.use("/api/webhook",     webhookRoutes);
 
-app.get("/health", async (req, res) => {
+app.get("/api/health", async (req, res) => {
   let dbStatus = 'unknown';
   try {
     await pool.query('SELECT 1');
@@ -35,6 +37,7 @@ app.get("/health", async (req, res) => {
     status:     "OK",
     db:         dbStatus,
     ws_clients: wsBroadcaster.clientCount(),
+    candles:    candleEngine.getStats(),
     uptime:     process.uptime(),
     timestamp:  new Date().toISOString(),
   });
@@ -52,13 +55,16 @@ async function start() {
     logger.warn(`DB init failed (will retry on next query): ${dbErr.message}`);
   }
 
+  // ── Start background services ──────────────────────────────────────────────
+  candleEngine.start();
+  pairAggregator.start();
+  logger.info("🔥 CandleEngine and PairAggregator started.");
+
   const server = app.listen(PORT, () => {
     logger.info(`🚀 Server running on port ${PORT}`);
   });
 
   // ── WebSocket Server on /ws ───────────────────────────────────────────────
-  // Attach AFTER app.listen() so httpServer exists.
-  // Frontend connects to: wss://solana-dexscreener-application-3.onrender.com/ws
   wsBroadcaster.attach(server);
   logger.info("📡 WebSocket server attached on /ws");
 
@@ -66,16 +72,16 @@ async function start() {
   async function shutdown(signal) {
     logger.warn(`[Server] ${signal} received — initiating graceful shutdown...`);
 
-    // Hard-kill guard: if shutdown takes > 10s, force exit (prevents Render hangs)
     const hardKill = setTimeout(() => {
       logger.error('[Server] Shutdown timed out after 10s — forcing exit');
       process.exit(1);
     }, 10_000);
     if (hardKill.unref) hardKill.unref();
 
-    // 1. Stop accepting new HTTP connections
     server.close(async () => {
       try { wsBroadcaster.close();            } catch { /* ignore */ }
+      try { await candleEngine.stop();        } catch { /* ignore */ }
+      try { pairAggregator.stop();            } catch { /* ignore */ }
       try { await DBBatcher.flushAndClose();  } catch { /* ignore */ }
       try { await closeRedis();               } catch { /* ignore */ }
       try { await pool.end();                 } catch { /* ignore */ }

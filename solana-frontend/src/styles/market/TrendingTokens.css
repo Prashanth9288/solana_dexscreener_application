@@ -1,0 +1,133 @@
+.trending-tokens-container {
+  margin: 16px 20px 8px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trending-tokens-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.trending-title {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.trending-view-all {
+  background: transparent;
+  border: none;
+  color: #3b82f6;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: all 0.2s;
+}
+
+.trending-view-all:hover {
+  text-decoration: underline;
+}
+
+.trending-scroll-area {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px; /* Room for scrollbar if forced */
+  
+  /* Hide scrollbar by default in webkit */
+  scrollbar-width: none; 
+  -ms-overflow-style: none;
+}
+
+.trending-scroll-area::-webkit-scrollbar {
+  display: none;
+}
+
+.trending-card {
+  min-width: 220px;
+  max-width: 220px;
+  background: #151924; /* matched app shell */
+  border: 1px solid #1e2536;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.trending-card:hover {
+  border-color: #3b82f6;
+  background: #1a1f2e;
+  transform: translateY(-2px);
+}
+
+.trending-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trending-rank {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8b99b0;
+  background: #1e2536;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.trending-symbol {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  flex: 1;
+}
+
+.trending-change {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.trending-change.positive { color: #00e676; }
+.trending-change.negative { color: #ff3b69; }
+
+.trending-card-middle {
+  display: flex;
+}
+
+.trending-price {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.trending-card-chart {
+  height: 30px;
+  width: 100%;
+}
+
+.trending-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #8b99b0;
+  margin-top: 4px;
+  border-top: 1px dashed #1e2536;
+  padding-top: 8px;
+}
+
+.trending-dex {
+  background: #1e2536;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #a9b1c2;
+}

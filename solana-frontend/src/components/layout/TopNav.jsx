@@ -9,15 +9,14 @@ function TopNav() {
 
   return (
     <header className="topnav-header">
-      
-      {/* 2. Global Search Bar */}
+      {/* 1. Global Search Bar */}
       <div className="topnav-search-container">
          <SearchBar />
       </div>
 
       <div className="topnav-spacer" />
 
-      {/* 3. Right side controls */}
+      {/* 2. Right side controls */}
       <div className="topnav-right-controls">
         {backendOnline !== null && (
           <div className={`pulse-dot ${backendOnline ? '' : 'pulse-dot--off'}`} />

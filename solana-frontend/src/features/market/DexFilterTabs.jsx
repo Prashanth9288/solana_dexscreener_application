@@ -1,8 +1,13 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import useMarketStore from '../../store/slices/useMarketStore';
 import { DEX_LIST, MARKET_TIMEFRAMES } from '../../constants';
 import { TrendingUp, ArrowUp, Zap, SlidersHorizontal, ChevronDown, Check, User, Bot, Crown } from 'lucide-react';
 import '../../styles/market/DexFilterTabs.css';
+
+import RankByDropdown from './RankByDropdown';
+import FilterModal from './FilterModal';
+import CustomizeScreenerModal from './CustomizeScreenerModal';
+import TimeframeDropdown from './TimeframeDropdown';
 
 /* ── Custom SVGs for Dexes ── */
 const DexLogos = {
@@ -21,6 +26,9 @@ const FILTER_TABS = [
 ];
 
 function DexFilterTabs() {
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [isScreenerModalOpen, setIsScreenerModalOpen] = useState(false);
+
   const activeDex        = useMarketStore((s) => s.activeDex);
   const setActiveDex     = useMarketStore((s) => s.setActiveDex);
   const activeFilter     = useMarketStore((s) => s.activeFilter);
@@ -65,14 +73,11 @@ function DexFilterTabs() {
         
         {/* LEFT GROUP */}
         <div className="dex-filter-group">
-          {/* Last 24 Hours Dropdown (Solid Blue) */}
-          <button className="dex-time-dropdown-btn">
-            ⏱ Last 24 hours <ChevronDown className="dex-icon-sm" />
-          </button>
+          <TimeframeDropdown />
 
           {/* Trending & Timeframes Combined Pill (Solid Blue outline) */}
           <div className="dex-trending-pill">
-            <button className="dex-trending-label-btn">
+            <button className={`dex-trending-label-btn ${activeFilter === 'trending' ? 'dex-trending-label-btn-active' : ''}`} onClick={() => setActiveFilter('trending')}>
               🔥 Trending <span className="dex-icon-info">ⓘ</span>
             </button>
             <div className="dex-timeframes-container">
@@ -110,19 +115,26 @@ function DexFilterTabs() {
 
         {/* RIGHT GROUP */}
         <div className="dex-filter-group">
-          <button className="dex-toolbar-right-btn">
-            <Crown className="dex-icon-sm" /> 
-            Rank by: ↓ Trending {MARKET_TIMEFRAMES.find(t => t.id === activeTimeframe)?.label || '5M'}
-          </button>
-          <button className="dex-toolbar-right-btn">
+          <RankByDropdown />
+          <button className="dex-toolbar-right-btn" onClick={() => setIsFilterModalOpen(true)}>
             <SlidersHorizontal className="dex-icon-sm" />
             Filters
           </button>
-          <button className="dex-toolbar-right-icon-btn">
+          <button className="dex-toolbar-right-icon-btn" onClick={() => setIsScreenerModalOpen(true)}>
             ⚙️
           </button>
         </div>
       </div>
+
+      <FilterModal 
+        isOpen={isFilterModalOpen} 
+        onClose={() => setIsFilterModalOpen(false)} 
+      />
+
+      <CustomizeScreenerModal
+        isOpen={isScreenerModalOpen}
+        onClose={() => setIsScreenerModalOpen(false)}
+      />
     </div>
   );
 }

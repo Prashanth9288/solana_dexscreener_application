@@ -67,7 +67,59 @@ function dedupedFetch(key, url, options) {
   return promise;
 }
 
-// ── Public API ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// V2 API (from pre-computed pairs table)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function getPairsV2(limit = 100, dex = 'all', sort = 'volume_24h', order = 'desc', signal) {
+  const dexParam = dex && dex !== 'all' ? `&dex=${encodeURIComponent(dex)}` : '';
+  const key = `pairs_v2:${limit}:${dex}:${sort}:${order}`;
+  return dedupedFetch(key, `${API_BASE}/analytics/pairs/v2?limit=${limit}&sort=${sort}&order=${order}${dexParam}`, { signal });
+}
+
+export function getTrending(limit = 50, signal) {
+  const key = `trending:${limit}`;
+  return dedupedFetch(key, `${API_BASE}/analytics/trending?limit=${limit}`, { signal });
+}
+
+export function getGainers(limit = 50, signal) {
+  const key = `gainers:${limit}`;
+  return dedupedFetch(key, `${API_BASE}/analytics/gainers?limit=${limit}`, { signal });
+}
+
+export function getLosers(limit = 50, signal) {
+  const key = `losers:${limit}`;
+  return dedupedFetch(key, `${API_BASE}/analytics/losers?limit=${limit}`, { signal });
+}
+
+export function getNewPairs(limit = 50, signal) {
+  const key = `new_pairs:${limit}`;
+  return dedupedFetch(key, `${API_BASE}/analytics/new-pairs?limit=${limit}`, { signal });
+}
+
+export function getPairDetail(base, quote, signal) {
+  const key = `pair_detail:${base}:${quote}`;
+  return dedupedFetch(key, `${API_BASE}/analytics/pair/${base}/${quote}`, { signal });
+}
+
+export function getTradesForToken(base, limit = 50, signal) {
+  const key = `trades:${base}:${limit}`;
+  return dedupedFetch(key, `${API_BASE}/analytics/trades/${base}?limit=${limit}`, { signal });
+}
+
+export function getTopTraders(base, limit = 10, signal) {
+  const key = `top_traders:${base}:${limit}`;
+  return dedupedFetch(key, `${API_BASE}/analytics/top-traders/${base}?limit=${limit}`, { signal });
+}
+
+export function getOHLCVv2(baseToken, quoteToken, timeframe, limit = 500, signal) {
+  const key = `ohlcv_v2:${baseToken}:${quoteToken}:${timeframe}:${limit}`;
+  return dedupedFetch(key, `${API_BASE}/analytics/ohlcv/v2?base_token=${baseToken}&quote_token=${quoteToken}&timeframe=${timeframe}&limit=${limit}`, { signal });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LEGACY API (preserved)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export function getRecentTrades(limit = 50, offset = 0, signal) {
   const key = `recent:${limit}:${offset}`;
@@ -97,6 +149,31 @@ export function getTokenMeta(mint, signal) {
   const key = `token:${mint}`;
   return dedupedFetch(key, `${API_BASE}/analytics/token/${mint}`, { signal });
 }
+
+// ── EXTERNAL APIS ─────────────────────────────────────────────────────────────
+
+export async function getTokenSecurity(mint, signal) {
+  const key = `security:${mint}`;
+  if (inFlightRequests.has(key)) return inFlightRequests.get(key);
+
+  const promise = (async () => {
+    try {
+      const res = await fetch(`https://api.rugcheck.xyz/v1/tokens/${mint}/report/summary`, { signal });
+      if (!res.ok) throw new Error('RugCheck fetch failed');
+      return await res.json();
+    } catch (err) {
+      if (err.name !== 'AbortError') console.error('Failed to get security data from RugCheck:', err);
+      throw err;
+    } finally {
+      inFlightRequests.delete(key);
+    }
+  })();
+
+  inFlightRequests.set(key, promise);
+  return promise;
+}
+
+// ── UTILITIES ────────────────────────────────────────────────────────────────
 
 export function decodeTransaction(signature, signal) {
   return fetchWithRetry(`${API_BASE}/transaction`, {

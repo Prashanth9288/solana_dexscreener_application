@@ -1,8 +1,6 @@
 @reference '../../index.css';
 .sidebar-container {
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: relative; /* Push content on desktop */
   height: 100%;
   background-color: #131722;
   border-right: 1px solid #1e2433;
@@ -12,7 +10,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 50;
+  z-index: 150; /* Above AppShell overlay */
 }
 
 .sidebar-container.expanded {
@@ -58,6 +56,8 @@
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
+
+
 
 .sidebar-app-promo-wrapper {
   flex-shrink: 0;

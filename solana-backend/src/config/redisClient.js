@@ -9,7 +9,7 @@ let redisSubscriber = null;
 const makeOptions = (role) => ({
   maxRetriesPerRequest: null,
   enableReadyCheck: true,             // Wait for READY before accepting commands
-  enableOfflineQueue: true,           // Queue commands when offline (auto-resend on reconnect)
+  enableOfflineQueue: false,          // VERY IMPORTANT: Do NOT buffer commands in memory if Redis is dead
   connectTimeout: 5000,               // 5s connection timeout
   commandTimeout: 3000,               // 3s per command before timeout
   lazyConnect: false,

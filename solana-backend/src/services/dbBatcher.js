@@ -2,10 +2,12 @@ const pool = require('../config/db');
 const logger = require('../utils/logger');
 const wsBroadcaster = require('./wsService');
 const { getPublisher } = require('../config/redisClient');
+const priceEngine = require('./priceEngine');
+const candleEngine = require('./candleEngine');
 
 let decodeQueue = [];
 let isProcessing = false;
-const BATCH_SIZE = parseInt(process.env.DB_BATCH_SIZE) || 2000;
+const BATCH_SIZE = parseInt(process.env.DB_BATCH_SIZE) || 5000;
 const MAX_QUEUE_LIMIT = parseInt(process.env.MAX_QUEUE_LIMIT) || 100000;
 
 class DBBatcher {
@@ -86,19 +88,26 @@ class DBBatcher {
 
             await client.query(query, flatParams);
 
+            // ── FEED PRICE & CANDLE ENGINES (non-blocking) ──
+            for (const row of chunk) {
+              try {
+                priceEngine.onSwap(row);
+                candleEngine.onSwap(row);
+              } catch { /* engines should never crash the batcher */ }
+            }
+
             // ── BROADCAST (REDIS PUB/SUB OR LOCAL FALLBACK) ──
-            // getPublisher() is resolved once at module load — no hot-require
             const publisher = getPublisher();
 
             if (publisher && publisher.status === 'ready') {
               const grouped = {};
               for (const row of chunk) {
-                // Build microscopic, frontend-ready payload only for valid mints
                 const baseOk  = row.base_token  && row.base_token  !== 'undefined' && row.base_token  !== 'null';
                 const quoteOk = row.quote_token && row.quote_token !== 'undefined' && row.quote_token !== 'null';
                 if (!baseOk && !quoteOk) continue;
 
                 const miniTrade = {
+                  type:        'trade',
                   signature:   row.signature,
                   price_usd:   row.price_usd,
                   usd_value:   row.usd_value,
@@ -119,16 +128,13 @@ class DBBatcher {
                 if (quoteOk) addToGroup(`trades:${row.quote_token}`);
               }
 
-              // Batch publish: one Redis call per unique channel, not per trade
               const publishPromises = Object.entries(grouped).map(([channel, trades]) =>
                 publisher.publish(channel, JSON.stringify({ type: 'trades', data: trades }))
                   .catch(err => logger.warn(`[Redis] Publish failed [${channel}]: ${err.message}`))
               );
-              // Non-blocking: don't stall DB transaction on Redis latency
               Promise.allSettled(publishPromises);
 
             } else if (wsBroadcaster.clientCount() > 0) {
-              // Fallback: monolithic WS broadcast when Redis is offline
               wsBroadcaster.broadcast({ type: 'trades', data: chunk });
             }
           }
@@ -137,7 +143,7 @@ class DBBatcher {
           break; // break retry loop on success
         } catch (e) {
           await client.query("ROLLBACK");
-          throw e; // goes to retry mechanism wrapper below
+          throw e;
         } finally {
           client.release();
         }
@@ -147,7 +153,6 @@ class DBBatcher {
           logger.error(`Database batch insert fully exhausted.`, { error: err.message, batchSize: batch.length });
         } else {
           logger.warn(`DB Insertion failed (attempt ${retries}), retrying...`, { error: err.message });
-          // Exponential backoff
           await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
         }
       }

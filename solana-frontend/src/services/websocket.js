@@ -6,7 +6,8 @@
  * - Graceful fallback to HTTP polling if WS unavailable
  */
 
-const WS_BASE = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+import { WS_URL } from '../constants';
+
 const RECONNECT_BASE_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 const PING_INTERVAL = 25000;
@@ -32,7 +33,7 @@ class WebSocketService {
     this._notifyStatus('connecting');
 
     try {
-      this.ws = new WebSocket(WS_BASE);
+      this.ws = new WebSocket(WS_URL);
     } catch (err) {
       console.warn('[WS] Connection failed, falling back to polling:', err.message);
       this.isConnecting = false;

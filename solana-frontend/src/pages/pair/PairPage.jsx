@@ -4,11 +4,12 @@ import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'reac
 import usePairStore from '../../store/slices/usePairStore';
 import useTradeStore from '../../store/slices/useTradeStore';
 import useChartStore from '../../store/slices/useChartStore';
+import useAppStore from '../../store/slices/useAppStore';
 import { usePolling } from '../../hooks/usePolling';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import { getRecentTrades, getTokenMeta, getOHLCV } from '../../services/api';
+import { getPairDetail, getTradesForToken, getOHLCVv2, getTokenMeta } from '../../services/api';
 import { buildCandlesFromTrades } from '../../utils/candles';
-import { TRADES_POLL_INTERVAL } from '../../constants';
+import { TRADES_POLL_INTERVAL, SOL_MINT } from '../../constants';
 import { useTradeBatcher } from '../../hooks/useTradeBatcher';
 import PairHeader from '../../features/pair/PairHeader';
 import TokenPanel from '../../features/pair/TokenPanel';
@@ -39,9 +40,12 @@ function PairPage() {
   const timeframe = useChartStore((s) => s.timeframe);
   const setChartLoading = useChartStore((s) => s.setLoading);
 
-  const [baseToken, quoteToken] = (address || '').split('-');
+  // Parse address — supports both "mint" and "base-quote" formats
+  const parts = (address || '').split('-');
+  const baseToken = parts[0] || address;
+  const quoteToken = parts[1] || SOL_MINT; // Default to SOL as quote token
 
-  // Initial hydration
+  // ── Initial Hydration ──────────────────────────────────────────────────────
   useEffect(() => {
     reset();
     clearTrades();
@@ -54,51 +58,52 @@ function PairPage() {
 
     async function hydrate() {
       try {
-        // Fetch token metadata
-        const [baseMeta, quoteMeta] = await Promise.allSettled([
-          baseToken ? getTokenMeta(baseToken) : Promise.resolve(null),
-          quoteToken ? getTokenMeta(quoteToken) : Promise.resolve(null),
+        // Parallel fetch: pair detail, OHLCV, trades, token metadata
+        const [pairRes, ohlcvRes, tradesRes, baseMetaRes, quoteMetaRes] = await Promise.allSettled([
+          getPairDetail(baseToken, quoteToken, controller.signal),
+          getOHLCVv2(baseToken, quoteToken, timeframe, 500, controller.signal),
+          getTradesForToken(baseToken, 200, controller.signal),
+          getTokenMeta(baseToken, controller.signal),
+          quoteToken ? getTokenMeta(quoteToken, controller.signal) : Promise.resolve(null),
         ]);
 
         if (controller.signal.aborted) return;
 
-        const bm = baseMeta.status === 'fulfilled' ? baseMeta.value : null;
-        const qm = quoteMeta.status === 'fulfilled' ? quoteMeta.value : null;
+        // ── Token Metadata ──
+        const bm = baseMetaRes.status === 'fulfilled' ? baseMetaRes.value : null;
+        const qm = quoteMetaRes.status === 'fulfilled' ? quoteMetaRes.value : null;
         setTokenMeta(bm, qm);
 
-        // Try to detect DEX from token metadata
-        if (bm?.source) setDex(bm.source);
-
-        // Fetch trades
-        const tradesRes = await getRecentTrades(200, controller.signal);
-        if (controller.signal.aborted) return;
-
-        if (tradesRes?.data) {
-          const pairTrades = tradesRes.data.filter(
-            t => (t.base_token === baseToken && t.quote_token === quoteToken) ||
-                 (t.base_token === quoteToken && t.quote_token === baseToken)
-          );
-          const allTrades = pairTrades.length > 0 ? pairTrades : tradesRes.data;
-
-          setTrades(allTrades);
-          updateMetrics(allTrades);
+        // ── Pair Detail (from pre-computed pairs table) ──
+        if (pairRes.status === 'fulfilled' && pairRes.value) {
+          const pd = pairRes.value;
+          if (pd.dex) setDex(pd.dex);
+          if (pd.price_usd) updatePrice(pd.price_usd);
+          // Set pair-level metadata from the pre-computed data
+          if (pd.base_token_meta) setTokenMeta(pd.base_token_meta, pd.quote_token_meta || qm);
           useAppStore.getState().setBackendOnline(true);
+        }
 
-          // Detect DEX from trades if not from metadata
-          if (allTrades[0]?.dex) setDex(allTrades[0].dex);
+        // ── OHLCV Candles ──
+        if (ohlcvRes.status === 'fulfilled' && ohlcvRes.value?.data?.length > 0) {
+          setCandles(ohlcvRes.value.data);
+        }
 
-          // Try backend OHLCV first, fallback to local candle building
-          try {
-            const ohlcv = await getOHLCV(baseToken, quoteToken, timeframe, 500, controller.signal);
-            if (ohlcv?.data?.length > 0) {
-              setCandles(ohlcv.data);
-            } else {
-              const candles = buildCandlesFromTrades(allTrades, timeframe);
-              setCandles(candles);
-            }
-          } catch {
-            const candles = buildCandlesFromTrades(allTrades, timeframe);
+        // ── Trades ──
+        if (tradesRes.status === 'fulfilled' && tradesRes.value?.data) {
+          const trades = tradesRes.value.data;
+          setTrades(trades);
+          updateMetrics(trades);
+
+          // If no OHLCV from server, build candles locally from trades
+          if (!(ohlcvRes.status === 'fulfilled' && ohlcvRes.value?.data?.length > 0)) {
+            const candles = buildCandlesFromTrades(trades, timeframe);
             setCandles(candles);
+          }
+
+          // Detect DEX from trades if not from pair detail
+          if (trades[0]?.dex && !usePairStore.getState().dex) {
+            setDex(trades[0].dex);
           }
         }
       } catch (err) {
@@ -117,23 +122,50 @@ function PairPage() {
     return () => { controller.abort(); };
   }, [address, baseToken, quoteToken]);
 
-  // Rebuild candles when timeframe changes (and we have trades)
+  // ── Timeframe change → re-fetch OHLCV from server ─────────────────────────
   useEffect(() => {
-    const trades = useTradeStore.getState().trades;
-    if (trades.length > 0) {
-      const candles = buildCandlesFromTrades(trades, timeframe);
-      setCandles(candles);
-    }
-  }, [timeframe, setCandles]);
+    const controller = new AbortController();
 
-  // ── WebSocket real-time streaming ──
-  // Subscribe to both token channels: trades fired on either side of the pair land here
+    async function refetchCandles() {
+      setChartLoading(true);
+      try {
+        const ohlcv = await getOHLCVv2(baseToken, quoteToken, timeframe, 500, controller.signal);
+        if (ohlcv?.data?.length > 0) {
+          setCandles(ohlcv.data);
+        } else {
+          // Fallback to local candle building from trades
+          const trades = useTradeStore.getState().trades;
+          if (trades.length > 0) {
+            const candles = buildCandlesFromTrades(trades, timeframe);
+            setCandles(candles);
+          }
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          const trades = useTradeStore.getState().trades;
+          if (trades.length > 0) {
+            setCandles(buildCandlesFromTrades(trades, timeframe));
+          }
+        }
+      } finally {
+        setChartLoading(false);
+      }
+    }
+
+    if (baseToken && quoteToken) {
+      refetchCandles();
+    }
+
+    return () => controller.abort();
+  }, [timeframe, baseToken, quoteToken, setCandles, setChartLoading]);
+
+  // ── WebSocket real-time streaming ──────────────────────────────────────────
   const wsChannels = [
     baseToken  ? `trades:${baseToken}`  : null,
-    quoteToken ? `trades:${quoteToken}` : null,
+    quoteToken && quoteToken !== SOL_MINT ? `trades:${quoteToken}` : null,
   ].filter(Boolean);
 
-  const queueTrade = useTradeBatcher(100); // 100ms throttle buffer
+  const queueTrade = useTradeBatcher(100);
 
   const handleWsTrade = useCallback((msg) => {
     queueTrade(msg);
@@ -144,7 +176,7 @@ function PairPage() {
   // ── HTTP Polling fallback (only when WS is disconnected) ──
   const poll = useCallback(async () => {
     try {
-      const res = await getRecentTrades(50);
+      const res = await getTradesForToken(baseToken, 50);
       if (res?.data?.length > 0) {
         addTrades(res.data);
 
@@ -155,7 +187,7 @@ function PairPage() {
         usePairStore.getState().updateMetricsFromTrades(allTrades);
       }
     } catch { /* silent during polling */ }
-  }, [addTrades, updatePrice]);
+  }, [baseToken, addTrades, updatePrice]);
 
   usePolling(poll, TRADES_POLL_INTERVAL, !wsConnected);
 
@@ -165,17 +197,17 @@ function PairPage() {
       {/* LEFT COLUMN: Header + Resizable Chart/Transactions */}
       <div className="pair-page-left-col">
         {/* HEADER AREA */}
-        <div className="shrink-0 border-b border-[#1e2433] z-10 w-full">
+        <div className="pair-page-header-area">
           <ErrorBoundary name="PairHeader" fallback="Failed to load header">
             <PairHeader />
           </ErrorBoundary>
         </div>
 
         {/* DRAGGABLE PANELS */}
-        <div className="flex-1 min-h-0 relative w-full">
+        <div className="pair-page-panels-area">
           <PanelGroup orientation="vertical" style={{ height: '100%' }}>
             <Panel defaultSize={60} minSize={30}>
-              <div className="w-full h-full border-r border-[#1e2433] flex flex-col relative min-h-0">
+              <div className="pair-page-panel-inner">
                 <ErrorBoundary name="TradingChart" fallback="Failed to load chart">
                   <TradingChart />
                 </ErrorBoundary>
@@ -185,7 +217,7 @@ function PairPage() {
             <PanelResizeHandle className="pair-page-resize-handle" />
             
             <Panel defaultSize={40} minSize={20}>
-              <div className="w-full h-full border-r border-[#1e2433] flex flex-col relative min-h-0">
+              <div className="pair-page-panel-inner">
                 <ErrorBoundary name="Transactions" fallback="Failed to load trades">
                   <TransactionsPanel />
                 </ErrorBoundary>

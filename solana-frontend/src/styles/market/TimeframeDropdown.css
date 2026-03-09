@@ -1,0 +1,71 @@
+.timeframe-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.timeframe-dropdown-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  background-color: #5d7aff; /* Exactly matching Dexscreener's primary blue */
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+
+.timeframe-dropdown-btn:hover {
+  background-color: #4b6ef5;
+}
+
+.timeframe-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 180px;
+  background-color: #1a2235;
+  border: 1px solid #2a2e39;
+  border-radius: 8px;
+  padding: 6px 0;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  animation: timeframeFadeIn 0.15s ease-out;
+}
+
+@keyframes timeframeFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.timeframe-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #f0f3fa;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.timeframe-dropdown-item:hover {
+  background-color: #242d45;
+}
+
+.timeframe-dropdown-checkmark {
+  width: 14px;
+  height: 14px;
+  color: #5d7aff;
+  flex-shrink: 0;
+}
+
+.timeframe-dropdown-item-content {
+  flex-grow: 1;
+}

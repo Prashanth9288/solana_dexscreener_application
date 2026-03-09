@@ -1,0 +1,265 @@
+/* ── Filter Modal Overlay ── */
+.filter-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.filter-modal-content {
+  background-color: #121826;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  border-radius: 12px;
+  border: 1px solid #1e2535;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  color: #f0f3fa;
+}
+
+/* ── Header ── */
+.filter-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #1e2535;
+}
+
+.filter-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.filter-modal-close-btn {
+  background: none;
+  border: none;
+  color: #8b99b0;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.filter-modal-close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f0f3fa;
+}
+
+/* ── Scrollable Body ── */
+.filter-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* Custom Scrollbar */
+.filter-modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+.filter-modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.filter-modal-body::-webkit-scrollbar-thumb {
+  background-color: #1e2535;
+  border-radius: 4px;
+}
+
+/* ── Top Tabs (Solana / All DEXes) ── */
+.filter-top-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.filter-top-tab {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f0f3fa;
+}
+
+.filter-top-tab img {
+  border-radius: 50%;
+}
+
+/* ── Section Dividers ── */
+.filter-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 32px 0 24px;
+}
+
+.filter-divider-line {
+  flex: 1;
+  height: 1px;
+  background-color: #1e2535;
+}
+
+.filter-divider-text {
+  font-size: 11px;
+  font-weight: 800;
+  color: #6b758c;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ── Grid Layout for Inputs ── */
+.filter-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.filter-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f0f3fa;
+  text-align: right;
+}
+
+.filter-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.filter-input-prefix {
+  position: absolute;
+  left: 10px;
+  font-size: 12px;
+  color: #5d6785;
+  pointer-events: none;
+}
+
+.filter-input-suffix {
+  position: absolute;
+  right: 10px;
+  font-size: 12px;
+  color: #5d6785;
+  pointer-events: none;
+}
+
+.filter-input {
+  width: 100%;
+  height: 36px;
+  background-color: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+  color: #f0f3fa;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0 10px;
+  outline: none;
+}
+
+.filter-input-with-prefix {
+  padding-left: 24px;
+}
+
+.filter-input-with-suffix {
+  padding-right: 36px;
+}
+
+.filter-input:focus {
+  border-color: #5d7aff;
+  background-color: #1e2535;
+}
+
+/* ── Profile/Boosted Buttons ── */
+.filter-tag-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.filter-tag-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  background-color: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.filter-tag-btn {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: #f0f3fa;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.filter-tag-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.filter-tag-btn.active {
+  background-color: #0b0e14;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Footer ── */
+.filter-modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #1e2535;
+  display: flex;
+  justify-content: center;
+}
+
+.filter-apply-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #5d7aff;
+  color: #fff;
+  border: none;
+  padding: 0 24px;
+  height: 40px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.filter-apply-btn:hover {
+  background-color: #4a68ff;
+}
+
+.filter-apply-btn:active {
+  transform: scale(0.98);
+}

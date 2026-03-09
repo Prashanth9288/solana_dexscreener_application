@@ -197,6 +197,13 @@ const END_REGEX    = /^Program ([A-Za-z0-9]{32,44}) (?:success|failed)/;
 // ── Main Route ────────────────────────────────────────────────────────────────
 router.post("/", async (req, res) => {
   try {
+    // Phase 16: Authentication Security Guard
+    const authHeader = req.headers.authorization;
+    if (process.env.HELIUS_AUTH_SECRET && authHeader !== process.env.HELIUS_AUTH_SECRET) {
+      logger.warn("Unauthorized webhook attempt blocked", { ip: req.ip });
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const { signature } = req.body;
     if (!signature) return res.status(400).json({ error: "Signature required" });
 

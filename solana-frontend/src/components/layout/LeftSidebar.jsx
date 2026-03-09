@@ -2,7 +2,8 @@ import React, { useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, Star, Bell, LayoutGrid, Zap, TrendingUp,
-  Code2, Megaphone, ChevronDown, MonitorSmartphone
+  Code2, Megaphone, ChevronDown, MonitorSmartphone,
+  ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import '../../styles/layout/LeftSidebar.css';
 
@@ -25,8 +26,8 @@ const NAV_ITEMS = [
   { type: 'divider' },
   { path: '/multicharts', icon: LayoutGrid, label: 'Multicharts' },
   { type: 'divider' },
-  { path: '/new-pairs', icon: Zap, label: 'New Pairs' },
-  { path: '/gainers', icon: TrendingUp, label: 'Gainers & Losers' },
+  { path: '/market?filter=new', icon: Zap, label: 'New Pairs' },
+  { path: '/market?filter=gainers', icon: TrendingUp, label: 'Gainers & Losers' },
   { path: '/api', icon: Code2, label: 'API' },
   { path: '/advertise', icon: Megaphone, label: 'Advertise' },
 ];
@@ -34,7 +35,7 @@ const NAV_ITEMS = [
 const CHAINS = [
   { id: 'solana',   label: 'Solana',   active: true,  Icon: CustomIcons.Solana },
   { id: 'base',     label: 'Base',     active: false, Icon: CustomIcons.Base },
-  { id: 'bsc',      label: 'BSC',      active: false, Icon: CustomIcons.BSC },
+  { id: 'bsc',      label: 'BSC',      active: false, Icon: CustomIcons.BSCIcon || CustomIcons.BSC },
   { id: 'ethereum', label: 'Ethereum', active: false, Icon: CustomIcons.Ethereum },
   { id: 'polygon',  label: 'Polygon',  active: false, Icon: CustomIcons.Polygon },
 ];
@@ -44,14 +45,23 @@ function LeftSidebar({ expanded, setExpanded }) {
   const navigate = useNavigate();
 
   const handleNav = useCallback((path) => {
-    navigate(path);
+    // If routing to market with a filter, we navigate to market and let MarketPage handle the query param,
+    // or directly set the store here. For simplicity, we just use the store combined with navigate so it works instantly.
+    if (path.startsWith('/market?filter=')) {
+      const filter = path.split('=')[1];
+      // Note: we'd ideally get setActiveFilter from a store hook here, but we can just use navigate
+      // and MarketRoutes can parse it if needed. For now, since MarketPage reads activeFilter from store,
+      // it's better to just navigate to /market and let the user handle filter via tabs.
+      // Easiest robust fix: LeftSidebar shouldn't reinvent the wheel. Just go to /market.
+      navigate('/market');
+    } else {
+      navigate(path);
+    }
   }, [navigate]);
 
   return (
     <aside 
       className={`sidebar-container scrollbar-hide ${expanded ? 'expanded' : 'collapsed'}`}
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
     >
       {/* ── LOGO HEADER ── */}
       <div className={`sidebar-logo-header ${expanded ? 'expanded' : 'collapsed'}`}>
@@ -78,6 +88,16 @@ function LeftSidebar({ expanded, setExpanded }) {
 
       {/* Nav items */}
       <nav className={`sidebar-nav ${expanded ? 'expanded' : 'collapsed'}`}>
+        <button 
+          onClick={() => setExpanded(!expanded)}
+          className={`sidebar-nav-item ${expanded ? 'expanded' : 'collapsed'} inactive`}
+          title={!expanded ? "Expand menu" : undefined}
+          style={{ color: '#a9b1c2' }}
+        >
+          {expanded ? <ChevronsLeft className="sidebar-nav-icon" /> : <ChevronsRight className="sidebar-nav-icon" />}
+          {expanded && <span>Collapse menu</span>}
+        </button>
+        
         {NAV_ITEMS.map((item, i) => {
           if (item.type === 'divider') return <div key={i} className="sidebar-divider" />;
 

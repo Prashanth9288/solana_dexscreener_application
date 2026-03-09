@@ -2,6 +2,8 @@
 .dex-filter-container {
   flex-shrink: 0;
   background-color: #0b0e14;
+  position: relative;
+  z-index: 50;
 }
 
 .dex-filter-tabs-wrapper {
@@ -52,7 +54,8 @@
   justify-content: space-between;
   padding: 0 12px;
   border-bottom: 1px solid #1e2535;
-  overflow-x: auto;
+  overflow: visible;
+  flex-wrap: wrap;
   background-color: #121826;
 }
 
