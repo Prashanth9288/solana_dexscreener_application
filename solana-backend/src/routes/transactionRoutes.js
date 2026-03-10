@@ -38,8 +38,16 @@ const SOL_PRICE_SOURCES = [
 async function updateSolPrice() {
   for (const source of SOL_PRICE_SOURCES) {
     try {
-      const response = await fetch(source.url, { signal: AbortSignal.timeout(5000) });
-      if (!response.ok) continue;
+      const response = await fetch(source.url, { 
+        signal: AbortSignal.timeout(5000),
+        headers: { 'User-Agent': 'SolanaAnalytics/1.0' }
+      });
+      if (!response.ok) {
+        if (response.status === 429) {
+          logger.warn(`Price source ${source.name} rate limited (429).`);
+        }
+        continue;
+      }
       const data = await response.json();
       const price = source.extract(data);
       if (price && price > 0 && isFinite(price)) {
@@ -51,17 +59,22 @@ async function updateSolPrice() {
         return; // success — stop cascade
       }
     } catch (err) {
-      // Silently fall through to next source
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+        logger.debug(`Price source ${source.name} timed out.`);
+      } else {
+        logger.debug(`Price source ${source.name} error: ${err.message}`);
+      }
     }
   }
   logger.warn('All SOL price sources failed — keeping previous value', {
     cached: cachedSolPrice,
+    lastSource: solPriceSource
   });
 }
 
-// Fetch immediately on boot, then poll every 15s
+// Fetch immediately on boot, then poll every 60s (to prevent Render IP rate-limiting)
 updateSolPrice();
-setInterval(updateSolPrice, 15000);
+setInterval(updateSolPrice, 60000);
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SOL_MINT = "So11111111111111111111111111111111111111112";
@@ -692,30 +705,26 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // Fallback: instruction-level classification
+    // Fallback: instruction-level classification (Protects against log truncation)
     if (executionProgram === "Unknown") {
+      const fallbackPrograms = new Set();
       for (const ix of txContext.instructions) {
         const pid = ix.programId || ix.program;
         if (AGGREGATORS[pid] && !aggregator) aggregator = AGGREGATORS[pid];
-        if (LIQUIDITY_PROGRAMS[pid]) {
-          executionProgram = pid;
-          final_hop = LIQUIDITY_PROGRAMS[pid].dex;
-        }
+        if (LIQUIDITY_PROGRAMS[pid]) fallbackPrograms.add(pid);
       }
-    }
-
-    // Inner instruction fallback
-    if (executionProgram === "Unknown") {
-      outer: for (const group of txContext.innerInstructions) {
+      for (const group of txContext.innerInstructions) {
         for (const ix of (group.instructions || [])) {
           const pid = ix.programId || ix.program;
-          if (LIQUIDITY_PROGRAMS[pid]) {
-            executionProgram = pid;
-            final_hop = LIQUIDITY_PROGRAMS[pid].dex;
-            break outer;
-          }
+          if (LIQUIDITY_PROGRAMS[pid]) fallbackPrograms.add(pid);
           if (AGGREGATORS[pid] && !aggregator) aggregator = AGGREGATORS[pid];
         }
+      }
+      if (fallbackPrograms.size > 0) {
+        executionProgram = Array.from(fallbackPrograms).pop(); // last identified program
+        final_hop = LIQUIDITY_PROGRAMS[executionProgram].dex;
+        hop_count = fallbackPrograms.size;
+        hop_type = hop_count > 1 ? "multi" : "single";
       }
     }
 

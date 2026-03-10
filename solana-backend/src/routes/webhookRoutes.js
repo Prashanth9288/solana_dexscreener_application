@@ -34,8 +34,12 @@ function drainQueue() {
     const signature = pendingJobs.shift();
     activeWorkers++;
     decodeAndStore(signature).finally(() => {
-      activeWorkers--;
-      drainQueue(); // pick up next job when a slot frees
+      // 1-second safety delay before picking up the next job 
+      // Prevents 429 Rate Limits on free-tier Render IPs when Helius fires rapidly
+      setTimeout(() => {
+        activeWorkers--;
+        drainQueue(); 
+      }, 1000);
     });
   }
 }

@@ -123,6 +123,7 @@ const CREATE_INDEXES = [
   // ── Candles indexes ──
   `CREATE INDEX IF NOT EXISTS idx_candles_pair_time ON candles_1m(base_token, quote_token, bucket_time DESC);`,
   `CREATE INDEX IF NOT EXISTS idx_candles_bucket ON candles_1m(bucket_time DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_candles_base_time ON candles_1m(base_token, bucket_time DESC);`,
 
   // ── Tokens indexes ──
   `CREATE INDEX IF NOT EXISTS idx_tokens_symbol ON tokens(symbol);`,
@@ -151,6 +152,18 @@ async function initDb() {
     await client.query(CREATE_TOKENS_TABLE);
     await client.query(CREATE_PAIRS_TABLE);
     await client.query(CREATE_CANDLES_TABLE);
+
+    // Attempt TimescaleDB hypertable conversion (graceful fallback to standard PG)
+    try {
+      await client.query('CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;');
+      // Note: If the table was created previously with a BIGSERIAL PK, setting it as a hypertable requires 
+      // the PK to include bucket_time. The easiest way without destructive migrations is to let standard PG run 
+      // if this fails, or drop the PK constraint if it exists. We'll simply try creating it.
+      await client.query(`SELECT create_hypertable('candles_1m', 'bucket_time', if_not_exists => true, migrate_data => true);`);
+      logger.info('TimescaleDB hypertable configured for candles_1m.');
+    } catch (tsErr) {
+      logger.info('TimescaleDB not available or hypertable setup skipped; using standard PostgreSQL indexes.');
+    }
 
     // Create indexes
     for (const idx of CREATE_INDEXES) {

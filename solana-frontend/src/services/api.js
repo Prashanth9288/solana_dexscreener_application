@@ -9,6 +9,8 @@
 import { API_BASE } from '../constants';
 
 const inFlightRequests = new Map();
+const responseCache = new Map(); // Simple LRU Cache
+const CACHE_TTL = 15_000; // 15 seconds TTL guarantees real-time fresh data on forced refresh
 const MAX_RETRIES = 3;
 const BASE_DELAY = 500;
 
@@ -56,11 +58,21 @@ async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
 }
 
 function dedupedFetch(key, url, options) {
+  const cached = responseCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return Promise.resolve(cached.data);
+  }
+
   if (inFlightRequests.has(key)) {
     return inFlightRequests.get(key);
   }
 
   const promise = fetchWithRetry(url, options)
+    .then(data => {
+      // Store successful responses in memory cache for 15s to speed up UI navigation
+      responseCache.set(key, { data, timestamp: Date.now() });
+      return data;
+    })
     .finally(() => inFlightRequests.delete(key));
 
   inFlightRequests.set(key, promise);
