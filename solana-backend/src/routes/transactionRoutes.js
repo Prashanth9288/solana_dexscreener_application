@@ -16,6 +16,14 @@ let solPriceSource = 'none';
 
 const SOL_PRICE_SOURCES = [
   {
+    name: 'Pyth',
+    url: 'https://hermes.pyth.network/v2/updates/price/latest?ids[]=ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d',
+    extract: (data) => {
+      const parsed = data?.parsed?.[0]?.price;
+      return parsed ? (parseInt(parsed.price) * Math.pow(10, parsed.expo)) : null;
+    }
+  },
+  {
     name: 'Jupiter',
     url: 'https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112',
     extract: (data) => {
@@ -27,7 +35,8 @@ const SOL_PRICE_SOURCES = [
     name: 'DexScreener',
     url: 'https://api.dexscreener.com/latest/dex/tokens/So11111111111111111111111111111111111111112',
     extract: (data) => {
-      const pair = data?.pairs?.find(p => p.baseToken.address === 'So11111111111111111111111111111111111111112');
+      // Must ensure the pair is traded against USDC to get a valid USD price
+      const pair = data?.pairs?.find(p => p.quoteToken.address === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
       return pair ? parseFloat(pair.priceUsd) : null;
     }
   },
