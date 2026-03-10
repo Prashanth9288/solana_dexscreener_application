@@ -24,15 +24,23 @@ const SOL_PRICE_SOURCES = [
     },
   },
   {
-    name: 'CoinGecko',
-    url: 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
-    extract: (data) => data?.solana?.usd ?? null,
+    name: 'DexScreener',
+    url: 'https://api.dexscreener.com/latest/dex/tokens/So11111111111111111111111111111111111111112',
+    extract: (data) => {
+      const pair = data?.pairs?.find(p => p.baseToken.address === 'So11111111111111111111111111111111111111112');
+      return pair ? parseFloat(pair.priceUsd) : null;
+    }
   },
   {
     name: 'Binance',
     url: 'https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT',
     extract: (data) => (data?.price ? parseFloat(data.price) : null),
   },
+  {
+    name: 'CoinGecko',
+    url: 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
+    extract: (data) => data?.solana?.usd ?? null,
+  }
 ];
 
 async function updateSolPrice() {
