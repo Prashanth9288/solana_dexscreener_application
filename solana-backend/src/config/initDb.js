@@ -154,14 +154,16 @@ async function initDb() {
     await client.query(CREATE_CANDLES_TABLE);
 
     // Attempt TimescaleDB hypertable conversion (graceful fallback to standard PG)
+    // We wrap this inside a SAVEPOINT. If the cloud database (like Render DB)
+    // does not allow creating extensions for free tiers, the entire transaction won't abort.
     try {
+      await client.query('SAVEPOINT ts_setup');
       await client.query('CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;');
-      // Note: If the table was created previously with a BIGSERIAL PK, setting it as a hypertable requires 
-      // the PK to include bucket_time. The easiest way without destructive migrations is to let standard PG run 
-      // if this fails, or drop the PK constraint if it exists. We'll simply try creating it.
       await client.query(`SELECT create_hypertable('candles_1m', 'bucket_time', if_not_exists => true, migrate_data => true);`);
+      await client.query('RELEASE SAVEPOINT ts_setup');
       logger.info('TimescaleDB hypertable configured for candles_1m.');
     } catch (tsErr) {
+      await client.query('ROLLBACK TO SAVEPOINT ts_setup');
       logger.info('TimescaleDB not available or hypertable setup skipped; using standard PostgreSQL indexes.');
     }
 
