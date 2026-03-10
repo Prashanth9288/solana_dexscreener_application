@@ -50,7 +50,7 @@ function drainQueue() {
 async function decodeAndStore(signature) {
   try {
     const port = process.env.PORT || 5000;
-    const internalUrl = `http://127.0.0.1:${port}/transaction`;
+    const internalUrl = `http://127.0.0.1:${port}/api/transaction`;
 
     const res = await fetch(internalUrl, {
       method:  'POST',
