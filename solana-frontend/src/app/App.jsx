@@ -8,6 +8,7 @@ import '@solana/wallet-adapter-react-ui/styles.css';
 import AppShell from '../layouts/AppShell';
 import MarketPage from '../pages/market/MarketPage';
 import PairPage from '../pages/pair/PairPage';
+import AuthCallbackPage from '../pages/auth/AuthCallbackPage';
 
 function App() {
   const network = 'mainnet-beta';
@@ -20,10 +21,12 @@ function App() {
         <WalletModalProvider>
           <Router>
             <AppShell>
-              <Routes>
+            <Routes>
                 <Route path="/" element={<Navigate to="/market" replace />} />
                 <Route path="/market" element={<MarketPage />} />
                 <Route path="/pair/:address" element={<PairPage />} />
+                {/* OAuth callback — outside AppShell layout */}
+                <Route path="/auth/callback" element={<AuthCallbackPage />} />
               </Routes>
             </AppShell>
           </Router>

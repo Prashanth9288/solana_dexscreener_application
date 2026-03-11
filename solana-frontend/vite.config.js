@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { resolve } from "path";
 
-const BACKEND_URL = process.env.VITE_API_URL || "https://solana-dexscreener-application-3.onrender.com";
+const BACKEND_URL = process.env.VITE_API_URL || "https://solana-dexscreener-project.onrender.com";
 
 export default defineConfig({
   plugins: [
@@ -21,14 +21,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5000,
+    port: 5173,
     proxy: {
       // REST API  →  https://your-render-app.onrender.com/analytics/...
       "/api": {
         target: BACKEND_URL,
         changeOrigin: true,
         secure: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
       },
       // WebSocket →  wss://your-render-app.onrender.com/ws
       "/ws": {

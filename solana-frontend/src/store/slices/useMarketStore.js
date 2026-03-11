@@ -10,7 +10,7 @@ const useMarketStore = create((set, get) => ({
 
   // ── Filters ───────────────────────────────────────────────────────────────
   activeDex: 'all',
-  activeFilter: 'trending', // trending | top | gainers | new
+  activeFilter: 'top', // trending | top | gainers | new
   activeTimeframe: '24h',   // 5m | 1h | 6h | 24h
   sortBy: 'volume_24h',
   sortDir: 'desc',

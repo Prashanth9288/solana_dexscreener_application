@@ -100,6 +100,41 @@ const CREATE_CANDLES_TABLE = `
   );
 `;
 
+// ── Auth Tables ──────────────────────────────────────────────────────────────
+
+const CREATE_USERS_TABLE = `
+  CREATE TABLE IF NOT EXISTS users (
+    id              SERIAL PRIMARY KEY,
+    email           TEXT UNIQUE,
+    password_hash   TEXT,
+    google_id       TEXT UNIQUE,
+    twitter_id      TEXT UNIQUE,
+    wallet_address  TEXT UNIQUE,
+    role            TEXT DEFAULT 'user',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    last_login      TIMESTAMPTZ DEFAULT NOW()
+  );
+`;
+
+const CREATE_WALLET_NONCES_TABLE = `
+  CREATE TABLE IF NOT EXISTS wallet_nonces (
+    wallet_address  TEXT PRIMARY KEY,
+    nonce           TEXT NOT NULL,
+    expires_at      TIMESTAMPTZ NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+  );
+`;
+
+const CREATE_AUTH_SESSIONS_TABLE = `
+  CREATE TABLE IF NOT EXISTS auth_sessions (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER NOT NULL,
+    refresh_token   TEXT NOT NULL,
+    expires_at      TIMESTAMPTZ NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+  );
+`;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // INDEX DEFINITIONS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -128,6 +163,13 @@ const CREATE_INDEXES = [
   // ── Tokens indexes ──
   `CREATE INDEX IF NOT EXISTS idx_tokens_symbol ON tokens(symbol);`,
   `CREATE INDEX IF NOT EXISTS idx_tokens_last_seen ON tokens(last_seen_at DESC);`,
+
+  // ── Auth indexes ──
+  `CREATE INDEX IF NOT EXISTS idx_users_wallet ON users(wallet_address);`,
+  `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`,
+  `CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(refresh_token);`,
+  `CREATE INDEX IF NOT EXISTS idx_nonces_expires ON wallet_nonces(expires_at);`,
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -152,6 +194,9 @@ async function initDb() {
     await client.query(CREATE_TOKENS_TABLE);
     await client.query(CREATE_PAIRS_TABLE);
     await client.query(CREATE_CANDLES_TABLE);
+    await client.query(CREATE_USERS_TABLE);
+    await client.query(CREATE_WALLET_NONCES_TABLE);
+    await client.query(CREATE_AUTH_SESSIONS_TABLE);
 
     // Attempt TimescaleDB hypertable conversion (graceful fallback to standard PG)
     // We wrap this inside a SAVEPOINT. If the cloud database (like Render DB)
@@ -173,7 +218,7 @@ async function initDb() {
     }
 
     await client.query('COMMIT');
-    logger.info('DB initialized — swaps, tokens, pairs, candles_1m tables and indexes ready.');
+    logger.info('DB initialized — swaps, tokens, pairs, candles_1m, users, wallet_nonces, auth_sessions tables and indexes ready.');
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch { /* ignore rollback errors */ }
     logger.error(`DB initialization failed: ${err.message}`);

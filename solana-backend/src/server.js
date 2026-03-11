@@ -5,6 +5,7 @@ const cors    = require("cors");
 const transactionRoutes = require("./routes/transactionRoutes");
 const analyticsRoutes   = require("./routes/analyticsRoutes");
 const webhookRoutes     = require("./routes/webhookRoutes");
+const authRoutes        = require("./routes/authRoutes");
 const DBBatcher         = require("./services/dbBatcher");
 const wsBroadcaster     = require("./services/wsService");
 const candleEngine      = require("./services/candleEngine");
@@ -13,17 +14,31 @@ const pool              = require("./config/db");
 const initDb            = require("./config/initDb");
 const { initRedis, closeRedis } = require("./config/redisClient");
 const logger            = require("./utils/logger");
+const helmet            = require("helmet");
+const session           = require("express-session");
+const passport          = require("./auth/passportStrategies");
 
 const app = express();
 
 // ── CORS — allow all origins (frontend on Render / Vite dev) ─────────────────
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'] }));
+app.use(helmet({ contentSecurityPolicy: false })); // Security headers (CSP disabled for API-only server)
 app.use(express.json({ limit: '10mb' }));
+
+// ── Session (minimal — only for Twitter OAuth 1.0a handshake) ────────────────
+app.use(session({
+  secret: process.env.JWT_SECRET || 'dev-session-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 5 * 60 * 1000 }, // 5 min
+}));
+app.use(passport.initialize());
 
 // ── HTTP Routes ───────────────────────────────────────────────────────────────
 app.use("/api/transaction", transactionRoutes);
 app.use("/api/analytics",   analyticsRoutes);
 app.use("/api/webhook",     webhookRoutes);
+app.use("/api/auth",        authRoutes);
 
 app.get("/api/health", async (req, res) => {
   let dbStatus = 'unknown';
