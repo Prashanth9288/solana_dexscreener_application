@@ -1,151 +1,120 @@
 // src/store/slices/useAuthStore.js — Authentication State Management
 // ─────────────────────────────────────────────────────────────────────────────
-// Manages JWT tokens, user profile, session restoration, and logout.
-// Persists tokens to localStorage for session survival across page reloads.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { API_BASE } from '../../constants';
 
-const STORAGE_KEY_ACCESS  = 'dex_access_token';
-const STORAGE_KEY_REFRESH = 'dex_refresh_token';
-const STORAGE_KEY_USER    = 'dex_user';
-
-const useAuthStore = create((set, get) => ({
-  // ── State ──────────────────────────────────────────────────────────────────
-  accessToken:     null,
-  refreshToken:    null,
-  user:            null,
-  isAuthenticated: false,
-  isAuthLoading:   false,
-
-  // ── Login — store tokens + user from API response ──────────────────────────
-  login: (authResponse) => {
-    const { access_token, refresh_token, user } = authResponse;
-
-    try {
-      localStorage.setItem(STORAGE_KEY_ACCESS, access_token);
-      localStorage.setItem(STORAGE_KEY_REFRESH, refresh_token);
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-    } catch { /* storage full or private mode */ }
-
-    set({
-      accessToken:     access_token,
-      refreshToken:    refresh_token,
-      user,
-      isAuthenticated: true,
-      isAuthLoading:   false,
-    });
-  },
-
-  // ── Logout — clear everything ──────────────────────────────────────────────
-  logout: async () => {
-    const refreshToken = get().refreshToken;
-
-    // Notify backend to invalidate refresh session
-    try {
-      await fetch(`${API_BASE}/auth/logout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-    } catch { /* best-effort */ }
-
-    try {
-      localStorage.removeItem(STORAGE_KEY_ACCESS);
-      localStorage.removeItem(STORAGE_KEY_REFRESH);
-      localStorage.removeItem(STORAGE_KEY_USER);
-    } catch { /* ignore */ }
-
-    set({
-      accessToken:     null,
-      refreshToken:    null,
-      user:            null,
+const useAuthStore = create(
+  persist(
+    (set, get) => ({
+      user: null,
+      access_token: null,
+      refresh_token: null,
       isAuthenticated: false,
-      isAuthLoading:   false,
-    });
-  },
 
-  // ── Refresh — exchange refresh token for new access token ──────────────────
-  refresh: async () => {
-    const refreshToken = get().refreshToken;
-    if (!refreshToken) return false;
+      login: (authResponse) => {
+        set({
+          access_token: authResponse.access_token,
+          refresh_token: authResponse.refresh_token,
+          user: authResponse.user,
+          isAuthenticated: true,
+        });
+      },
 
-    try {
-      const res = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-
-      if (!res.ok) {
-        get().logout();
-        return false;
-      }
-
-      const data = await res.json();
-      get().login(data);
-      return true;
-    } catch {
-      get().logout();
-      return false;
-    }
-  },
-
-  // ── Restore session from localStorage on app load ──────────────────────────
-  restoreSession: async () => {
-    set({ isAuthLoading: true });
-
-    try {
-      const accessToken  = localStorage.getItem(STORAGE_KEY_ACCESS);
-      const refreshToken = localStorage.getItem(STORAGE_KEY_REFRESH);
-      const userStr      = localStorage.getItem(STORAGE_KEY_USER);
-
-      if (!accessToken || !refreshToken) {
-        set({ isAuthLoading: false });
-        return;
-      }
-
-      const user = userStr ? JSON.parse(userStr) : null;
-
-      // Set tokens first so the UI shows logged in
-      set({
-        accessToken,
-        refreshToken,
-        user,
-        isAuthenticated: true,
-      });
-
-      // Verify token is still valid by hitting /me
-      const res = await fetch(`${API_BASE}/auth/me`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-      });
-
-      if (res.ok) {
-        const { user: freshUser } = await res.json();
-        localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(freshUser));
-        set({ user: freshUser, isAuthLoading: false });
-      } else if (res.status === 401) {
-        // Access token expired — try refresh
-        const refreshed = await get().refresh();
-        if (!refreshed) {
-          set({ isAuthLoading: false });
+      logout: async () => {
+        const { refresh_token } = get();
+        if (refresh_token) {
+          try {
+            await fetch(`${API_BASE}/auth/logout`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token }),
+            });
+          } catch { /* ignore */ }
         }
-      } else {
-        set({ isAuthLoading: false });
-      }
-    } catch {
-      set({ isAuthLoading: false });
+
+        try {
+          localStorage.removeItem('dex_access_token');
+          localStorage.removeItem('dex_refresh_token');
+          localStorage.removeItem('dex_user');
+          // If using persist, clearing state below will auto-sync to 'auth'
+        } catch {}
+
+        set({
+          user: null,
+          access_token: null,
+          refresh_token: null,
+          isAuthenticated: false,
+        });
+      },
+
+      refresh: async () => {
+        const originalRefreshToken = get().refresh_token;
+        if (!originalRefreshToken) return false;
+
+        try {
+          const res = await fetch(`${API_BASE}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: originalRefreshToken }),
+          });
+
+          if (!res.ok) {
+            // STOP THE 401 LOOP: if refresh fails once, clear the store instantly
+            console.warn('[useAuthStore] Refresh failed. Clearing session.');
+            get().logout();
+            return false;
+          }
+
+          const data = await res.json();
+          get().login(data);
+          return true;
+        } catch {
+          // Network level failure — don't wipe session here, might just be offline
+          return false;
+        }
+      },
+
+      restoreSession: async () => {
+        // Persist middleware automatically hydrates state synchronously.
+        // We ALWAYS silently verify current status to ensure backend validity.
+        const { access_token, refresh_token } = get();
+        
+        // GUARD: Never call /me if we don't have a token
+        if (!access_token && !refresh_token) {
+           get().logout();
+           return;
+        }
+
+        try {
+          const res = await fetch(`${API_BASE}/auth/me`, {
+            headers: { 'Authorization': `Bearer ${access_token}` },
+          });
+
+          if (res.ok) {
+            const { user } = await res.json();
+            set({ user, isAuthenticated: true });
+          } else if (res.status === 401 && refresh_token) {
+            // Only attempt refresh if we actually have a refresh token
+            await get().refresh();
+          } else {
+             // Token invalid and no refresh possible -> clear
+             get().logout();
+          }
+        } catch (err) {
+           console.warn('[useAuthStore] restoreSession network error:', err);
+        }
+      },
+
+      getAuthHeader: () => {
+        const token = get().access_token;
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+      },
+    }),
+    {
+      name: 'auth',
     }
-  },
-
-  // ── Helper — get auth header for API calls ─────────────────────────────────
-  getAuthHeader: () => {
-    const token = get().accessToken;
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-  },
-
-  setAuthLoading: (v) => set({ isAuthLoading: v }),
-}));
+  )
+);
 
 export default useAuthStore;

@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import useMarketStore from '../../store/slices/useMarketStore';
 import { formatUSD, formatNumber, shortenAddress, formatPercent, formatAge } from '../../utils/formatters';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import StarButton from '../../components/watchlist/StarButton';
 import '../../styles/market/TokenTable.css';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -26,7 +27,7 @@ const ChangeCell = React.memo(function ChangeCell({ value }) {
 /* ═══════════════════════════════════════════════════════════════════
    TOKEN ROW
    ═══════════════════════════════════════════════════════════════════ */
-const TokenRow = React.memo(function TokenRow({ pair, rank, style, visibleColumns, gridTemplate, columnOrder }) {
+export const TokenRow = React.memo(function TokenRow({ pair, rank, style, visibleColumns, gridTemplate, columnOrder }) {
   const navigate = useNavigate();
   const bm = pair.base_token_meta;
   const symbol = bm?.symbol || shortenAddress(pair.base_token, 3);
@@ -52,8 +53,11 @@ const TokenRow = React.memo(function TokenRow({ pair, rank, style, visibleColumn
         gridTemplateColumns: gridTemplate,
       }}
     >
-      <div className="token-table-cell-token" style={{ userSelect: 'none' }}>
-        <span className="token-table-cell-rank">#{rank}</span>
+      <div className="token-table-cell-token" style={{ userSelect: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span className="token-table-cell-rank">
+          {typeof rank === 'number' ? `#${rank}` : rank}
+        </span>
+        <StarButton tokenAddress={pair.base_token} />
         <div className="token-table-cell-logo">
           {logo ? (
             <img src={logo} alt="" className="token-table-cell-logo-img" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
@@ -99,7 +103,7 @@ const TokenRow = React.memo(function TokenRow({ pair, rank, style, visibleColumn
 /* ═══════════════════════════════════════════════════════════════════
    SORTABLE HEADER CELL
    ═══════════════════════════════════════════════════════════════════ */
-function SortHeader({ label, field, sortBy, sortDir, toggleSort, align = 'right' }) {
+export function SortHeader({ label, field, sortBy, sortDir, toggleSort, align = 'right' }) {
   const isActive = sortBy === field;
   return (
     <div className={`cursor-pointer select-none token-table-cell ${align === 'right' ? 'text-right' : 'text-left'}`} onClick={() => toggleSort(field)}>

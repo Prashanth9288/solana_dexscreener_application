@@ -12,13 +12,13 @@ export function Skeleton({ width = '100%', height = '14px', className = '', roun
 
 export function SkeletonRow({ columns = 8, height = '40px' }) {
   return (
-    <tr style={{ height }}>
+    <div style={{ height, display: 'flex', width: '100%', alignItems: 'center' }} role="row">
       {Array.from({ length: columns }).map((_, i) => (
-        <td key={i} className="skeleton-row-cell">
+        <div key={i} className="skeleton-row-cell" role="cell" style={{ flex: 1 }}>
           <Skeleton height="12px" width={i === 0 ? '20px' : i === 1 ? '100px' : `${50 + Math.random() * 30}px`} />
-        </td>
+        </div>
       ))}
-    </tr>
+    </div>
   );
 }
 

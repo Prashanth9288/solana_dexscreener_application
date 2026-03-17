@@ -10,6 +10,7 @@ const rateLimit = require('express-rate-limit');
 const passport  = require('../auth/passportStrategies');
 const { requireAuth, optionalAuth } = require('../auth/authMiddleware');
 const auth = require('../auth/authController');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -30,6 +31,15 @@ const strictLimiter = rateLimit({
   message: { error: 'Too many attempts — please wait before trying again' },
 });
 
+// OAuth-specific rate limiter — generous enough for normal use, tight enough to block abuse
+const oauthLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,             // 30 OAuth attempts per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many OAuth requests — please wait before trying again' },
+});
+
 // ── Wallet + Email Routes ────────────────────────────────────────────────────
 router.get('/nonce',          authLimiter,   auth.getNonce);
 router.post('/verify-wallet', authLimiter,   auth.verifyWallet);
@@ -38,9 +48,7 @@ router.post('/login',         strictLimiter, auth.login);
 router.post('/refresh',       authLimiter,   auth.refreshToken);
 
 // ── Google OAuth Routes ──────────────────────────────────────────────────────
-router.get('/google',
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
-);
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], state: true, session: false }));
 
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/market?auth_error=google_failed' }),
@@ -48,12 +56,14 @@ router.get('/google/callback',
 );
 
 // ── Twitter/X OAuth Routes ───────────────────────────────────────────────────
-router.get('/twitter',
-  passport.authenticate('twitter', { session: false })
-);
+router.get('/twitter', passport.authenticate('twitter', { session: true }));
 
-router.get('/twitter/callback',
-  passport.authenticate('twitter', { session: false, failureRedirect: '/market?auth_error=twitter_failed' }),
+router.get(
+  "/twitter/callback",
+  passport.authenticate("twitter", {
+    session: true,
+    failureRedirect: "/market?auth_error=twitter_failed",
+  }),
   auth.oauthCallback
 );
 
@@ -63,4 +73,3 @@ router.get('/me',             requireAuth, auth.getMe);
 router.post('/logout',        optionalAuth, auth.logout);
 
 module.exports = router;
-

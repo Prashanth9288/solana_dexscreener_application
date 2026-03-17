@@ -15,18 +15,32 @@ const NONCE_TTL_MINUTES = 5;
  * Uses UPSERT so repeated requests just refresh the nonce.
  */
 async function generateNonce(walletAddress) {
-  const nonce     = crypto.randomBytes(32).toString('hex');
+  const uuid = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + NONCE_TTL_MINUTES * 60 * 1000);
 
-  await pool.query(
-    `INSERT INTO wallet_nonces (wallet_address, nonce, expires_at, created_at)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (wallet_address)
-     DO UPDATE SET nonce = $2, expires_at = $3, created_at = NOW()`,
-    [walletAddress, nonce, expiresAt]
+  // Safely check if the user exists first to respect Email NOT NULL constraints
+  const { rows } = await pool.query(
+    `SELECT id FROM users WHERE wallet_address = $1`,
+    [walletAddress]
   );
 
-  return nonce;
+  if (rows.length > 0) {
+    // User already exists via OAuth, Email, or prior SIWS link
+    await pool.query(
+      `UPDATE users SET nonce = $1, nonce_expires = $2 WHERE wallet_address = $3`,
+      [uuid, expiresAt, walletAddress]
+    );
+  } else {
+    // Pure Web3 Anonymous Login -> generates a placeholder email mathematically
+    const anonymousEmail = `web3_${walletAddress.slice(0,12)}@dex.local`;
+    await pool.query(
+      `INSERT INTO users (wallet_address, email, role, nonce, nonce_expires, created_at, last_login)
+       VALUES ($1, $2, 'user', $3, $4, NOW(), NOW())`,
+      [walletAddress, anonymousEmail, uuid, expiresAt]
+    );
+  }
+
+  return uuid;
 }
 
 /**
@@ -35,8 +49,9 @@ async function generateNonce(walletAddress) {
  */
 async function consumeNonce(walletAddress) {
   const { rows } = await pool.query(
-    `DELETE FROM wallet_nonces
-     WHERE wallet_address = $1 AND expires_at > NOW()
+    `UPDATE users
+     SET nonce = NULL, nonce_expires = NULL
+     WHERE wallet_address = $1 AND nonce_expires > NOW()
      RETURNING nonce`,
     [walletAddress]
   );
@@ -55,7 +70,7 @@ async function consumeNonce(walletAddress) {
 async function cleanupExpiredNonces() {
   try {
     const { rowCount } = await pool.query(
-      `DELETE FROM wallet_nonces WHERE expires_at <= NOW()`
+      `UPDATE users SET nonce = NULL, nonce_expires = NULL WHERE nonce_expires <= NOW()`
     );
     if (rowCount > 0) {
       logger.debug(`[Nonce] Cleaned up ${rowCount} expired nonces`);

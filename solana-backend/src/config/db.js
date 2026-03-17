@@ -1,14 +1,14 @@
+require('dotenv').config();
 // src/config/db.js
 // 1000+ TPS Production PostgreSQL Connection Pool 
 
 const { Pool } = require('pg');
 const logger = require('../utils/logger');
-require('dotenv').config();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// In production, Render provides DATABASE_URL
-const dbConfig = isProduction
+// Prioritize DATABASE_URL if provided (e.g., Render Postgres), even in development
+const dbConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false }, // Required for Render Postgres

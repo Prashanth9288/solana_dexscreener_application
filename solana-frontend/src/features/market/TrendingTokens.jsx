@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import useMarketStore from '../../store/slices/useMarketStore';
 import { formatUSD, formatPercent } from '../../utils/formatters';
 import { Sparklines, SparklinesLine, SparklinesSpots } from 'react-sparklines';
+import StarButton from '../../components/watchlist/StarButton';
 import '../../styles/market/TrendingTokens.css';
 
 function TrendingTokens() {
@@ -56,6 +57,7 @@ function TrendingTokens() {
               <div className="trending-card-top">
                 <span className="trending-rank">#{idx + 1}</span>
                 <span className="trending-symbol">{pair.base_token_meta?.symbol || pair.base_token.slice(0, 4)}</span>
+                <StarButton tokenAddress={pair.base_token} />
                 <span className={`trending-change ${isPositive ? 'positive' : 'negative'}`}>
                   {formatPercent(pair.price_change_24h)}
                 </span>

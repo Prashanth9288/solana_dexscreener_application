@@ -32,12 +32,10 @@ export function useWebSocket(channels, onMessage, enabled = true) {
   onMessageRef.current = onMessage;
 
   // Normalize to array
-  const normalizedChannels = Array.isArray(channels)
-    ? channels
-    : channels
-    ? [channels]
-    : [];
-  channelsRef.current = normalizedChannels;
+  const rawChannels = Array.isArray(channels) ? channels : channels ? [channels] : [];
+  const channelsStr = JSON.stringify(rawChannels);
+  const normalizedChannels = JSON.parse(channelsStr);
+  const prevChannelsRef = useRef([]);
 
   // Build WebSocket URL
   const getWsUrl = useCallback(() => {
@@ -132,9 +130,39 @@ export function useWebSocket(channels, onMessage, enabled = true) {
         wsRef.current = null;
       }
     };
-  // Only reconnect when the channel list or enabled flag changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, channels]);
+  }, [enabled]); // CONNECT EXCLUSIVELY ON ENABLE FLAG
+
+  // Dynamic Sub/Unsub Diffing Effect
+  useEffect(() => {
+    if (!enabledRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      prevChannelsRef.current = normalizedChannels;
+      // Also sync channelsRef for the initial onopen payload
+      channelsRef.current = normalizedChannels;
+      return;
+    }
+
+    const currentSet = new Set(prevChannelsRef.current);
+    const nextSet = new Set(normalizedChannels);
+
+    // Unsubscribe removed channels
+    currentSet.forEach(ch => {
+      if (!nextSet.has(ch)) {
+        wsRef.current.send(JSON.stringify({ action: 'unsubscribe', channel: ch }));
+      }
+    });
+
+    // Subscribe new channels
+    nextSet.forEach(ch => {
+      if (!currentSet.has(ch)) {
+        wsRef.current.send(JSON.stringify({ action: 'subscribe', channel: ch }));
+      }
+    });
+
+    prevChannelsRef.current = normalizedChannels;
+    channelsRef.current = normalizedChannels;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelsStr]); // Triggers precisely when the serialized channel list mutates
 
   return { connected };
 }

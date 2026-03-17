@@ -1,38 +1,36 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
-import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { clusterApiUrl } from '@solana/web3.js';
-import '@solana/wallet-adapter-react-ui/styles.css';
 
 import AppShell from '../layouts/AppShell';
 import MarketPage from '../pages/market/MarketPage';
+import WatchlistPage from '../pages/watchlist/WatchlistPage';
 import PairPage from '../pages/pair/PairPage';
 import AuthCallbackPage from '../pages/auth/AuthCallbackPage';
+import LoginPage from '../pages/auth/LoginPage';
+import WalletContextProvider from '../providers/WalletContextProvider';
 
 function App() {
-  const network = 'mainnet-beta';
-  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
-  // Wallets are auto-detected via Wallet Standard, explicit adapter array is deprecated
-
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={[]} autoConnect>
-        <WalletModalProvider>
-          <Router>
+    <WalletContextProvider>
+      <Router>
+        <Routes>
+          {/* OAuth callback — isolated completely outside AppShell to prevent topnav auto-restore interference */}
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          
+          <Route path="/*" element={
             <AppShell>
-            <Routes>
+              <Routes>
                 <Route path="/" element={<Navigate to="/market" replace />} />
                 <Route path="/market" element={<MarketPage />} />
+                <Route path="/watchlist" element={<WatchlistPage />} />
                 <Route path="/pair/:address" element={<PairPage />} />
-                {/* OAuth callback — outside AppShell layout */}
-                <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                <Route path="/login" element={<LoginPage />} />
               </Routes>
             </AppShell>
-          </Router>
-        </WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+          } />
+        </Routes>
+      </Router>
+    </WalletContextProvider>
   );
 }
 

@@ -4,11 +4,10 @@
  */
 
 // API base — uses Vite proxy in dev, relative path in production
-export const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
 // WebSocket URL — dynamically constructed for dev/prod
-const WS_PROTO = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-export const WS_URL = import.meta.env.VITE_WS_URL || `${WS_PROTO}//${window.location.host}/ws`;
+export const WS_URL = import.meta.env.VITE_WS_URL || '/ws';
 
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';

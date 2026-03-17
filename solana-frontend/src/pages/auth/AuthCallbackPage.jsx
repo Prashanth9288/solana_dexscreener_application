@@ -27,37 +27,34 @@ function AuthCallbackPage() {
       }
 
       const params = new URLSearchParams(hash);
-      const accessToken  = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
+      const access_token  = params.get('access_token');
+      const refresh_token = params.get('refresh_token');
       const userId       = params.get('user_id');
       const email        = params.get('email');
       const provider     = params.get('provider');
 
-      if (!accessToken || !refreshToken) {
-        console.warn('[AuthCallback] Missing tokens in hash');
-        navigate('/market', { replace: true });
-        return;
+      if (access_token && refresh_token) {
+        login({
+          access_token,
+          refresh_token,
+          user: {
+            id:       Number(userId),
+            email:    email || null,
+            provider: provider || 'oauth',
+            role:     'user',
+          },
+        });
       }
 
-      // Store tokens via auth store
-      login({
-        access_token:  accessToken,
-        refresh_token: refreshToken,
-        user: {
-          id:       Number(userId),
-          email:    email || null,
-          provider: provider || 'oauth',
-          role:     'user',
-        },
-      });
-
-      console.log(`[AuthCallback] ${provider} login successful — redirecting to market`);
-
-      // Clean the URL and redirect
-      navigate('/market', { replace: true });
+      // Use React Router navigate to prevent full page reload from killing Zustand LocalStorage writes
+      setTimeout(() => {
+        navigate('/market', { replace: true });
+      }, 100);
     } catch (err) {
       console.error('[AuthCallback] Error processing OAuth callback:', err);
-      navigate('/market', { replace: true });
+      setTimeout(() => {
+        navigate('/market', { replace: true });
+      }, 100);
     }
   }, [login, navigate]);
 

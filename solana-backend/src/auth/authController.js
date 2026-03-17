@@ -113,7 +113,7 @@ async function verifyWallet(req, res) {
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    // 4. Find or create user
+    // 4. Find user (already UPSERTED by generateNonce)
     let user;
     const { rows: existing } = await pool.query(
       `SELECT * FROM users WHERE wallet_address = $1`,
@@ -125,14 +125,7 @@ async function verifyWallet(req, res) {
       // Update last_login
       await pool.query(`UPDATE users SET last_login = NOW() WHERE id = $1`, [user.id]);
     } else {
-      // Create new user with wallet
-      const { rows: created } = await pool.query(
-        `INSERT INTO users (wallet_address, role, created_at, last_login)
-         VALUES ($1, 'user', NOW(), NOW())
-         RETURNING *`,
-        [walletAddress]
-      );
-      user = created[0];
+      return res.status(401).json({ error: 'User record missing during verification' });
     }
 
     // 5. Issue token pair
@@ -370,6 +363,7 @@ async function logout(req, res) {
   try {
     const { refresh_token } = req.body;
 
+    // 1. Delete specific refresh token session if provided
     if (refresh_token) {
       await pool.query(
         `DELETE FROM auth_sessions WHERE refresh_token = $1`,
@@ -377,16 +371,17 @@ async function logout(req, res) {
       );
     }
 
-    // If JWT is present, also clean all sessions for that user
-    if (req.user) {
-      // Optional: invalidate ALL sessions for the user
-      // await pool.query(`DELETE FROM auth_sessions WHERE user_id = $1`, [req.user.user_id]);
+    // 2. If JWT is present (via optionalAuth middleware), clear all sessions for that user
+    // This serves as a secondary sweep to guarantee rogue sessions are destroyed
+    if (req.user && req.user.user_id) {
+       await pool.query(`DELETE FROM auth_sessions WHERE user_id = $1`, [req.user.user_id]);
     }
 
     res.json({ success: true });
   } catch (err) {
     logger.error(`[Auth] logout error: ${err.message}`);
-    res.status(500).json({ error: 'Logout failed' });
+    // Don't leak 500s on logout — frontends don't need to block UI if DB fails to drop session
+    res.json({ success: true }); 
   }
 }
 

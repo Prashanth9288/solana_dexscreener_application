@@ -3,8 +3,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, Star, Bell, LayoutGrid, Zap, TrendingUp,
   Code2, Megaphone, ChevronDown, MonitorSmartphone,
-  ChevronsLeft, ChevronsRight
+  ChevronsLeft, ChevronsRight, LogOut, LogIn
 } from 'lucide-react';
+import useAuthStore from '../../store/slices/useAuthStore';
 import '../../styles/layout/LeftSidebar.css';
 
 import { SolanaIcon, BaseIcon, BSCIcon, EthereumIcon, PolygonIcon } from '../icons/ChainIcons';
@@ -43,6 +44,8 @@ const CHAINS = [
 function LeftSidebar({ expanded, setExpanded }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
 
   const handleNav = useCallback((path) => {
     // If routing to market with a filter, we navigate to market and let MarketPage handle the query param,
@@ -144,7 +147,7 @@ function LeftSidebar({ expanded, setExpanded }) {
           {expanded && <span className="sidebar-watchlist-title">Watchlist</span>}
         </div>
         {expanded && (
-          <button className="sidebar-watchlist-btn">
+          <button className="sidebar-watchlist-btn" onClick={() => handleNav('/watchlist')}>
             Main Watchlist
             <ChevronDown className="sidebar-watchlist-chevron" />
           </button>
@@ -152,20 +155,44 @@ function LeftSidebar({ expanded, setExpanded }) {
       </div>
       
       {/* Settings / User footer */}
-      <div 
-        title={!expanded ? "Profile" : undefined}
-        className={`sidebar-footer ${expanded ? 'expanded' : 'collapsed'}`}
-      >
-        <div className={`sidebar-user-avatar ${expanded ? 'expanded' : 'collapsed'}`}>
-          <span className="sidebar-user-initial">U</span>
+      {user ? (
+        <div 
+          title={!expanded ? "Profile" : undefined}
+          className={`sidebar-footer ${expanded ? 'expanded' : 'collapsed'}`}
+        >
+          <div className={`sidebar-user-avatar ${expanded ? 'expanded' : 'collapsed'}`}>
+            <span className="sidebar-user-initial">{user.email ? user.email.charAt(0).toUpperCase() : 'U'}</span>
+          </div>
+          {expanded && (
+            <>
+              <span className="sidebar-user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }} title={user.email}>
+                {user.email || 'User'}
+              </span>
+              <button 
+                onClick={logout}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                title="Logout"
+              >
+                <LogOut size={16} color="#a9b1c2" className="sidebar-user-icon" />
+              </button>
+            </>
+          )}
         </div>
-        {expanded && (
-          <>
-            <span className="sidebar-user-name">upparapra...</span>
-            <MonitorSmartphone className="sidebar-user-icon" />
-          </>
-        )}
-      </div>
+      ) : (
+        <div 
+          title={!expanded ? "Login" : undefined}
+          className={`sidebar-footer ${expanded ? 'expanded' : 'collapsed'}`}
+          onClick={() => navigate('/login')}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className={`sidebar-user-avatar ${expanded ? 'expanded' : 'collapsed'}`}>
+            <LogIn size={16} color="#a9b1c2" />
+          </div>
+          {expanded && (
+             <span className="sidebar-user-name">Login</span>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

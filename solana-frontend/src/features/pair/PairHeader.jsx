@@ -1,6 +1,7 @@
 import React from 'react';
 import usePairStore from '../../store/slices/usePairStore';
 import CopyAddress from '../../components/ui/CopyAddress';
+import StarButton from '../../components/watchlist/StarButton';
 import { ExternalLink, ChevronRight } from 'lucide-react';
 import { SOLSCAN_ACCOUNT_URL, getDexColor } from '../../constants';
 import '../../styles/pair/PairHeader.css';
@@ -40,6 +41,7 @@ function PairHeader() {
         <div className="pair-top-info-stack">
           {/* Top Row: ONE / SOL  TokenName */}
           <div className="pair-top-name-row">
+            {baseToken && <StarButton tokenAddress={baseToken} />}
             <span className="pair-top-symbol">{symbol}</span>
             <span className="pair-top-qsymbol">/ {qSymbol}</span>
             <span className="pair-top-name-badge">{name}</span>

@@ -135,6 +135,41 @@ const CREATE_AUTH_SESSIONS_TABLE = `
   );
 `;
 
+// ── Professional Watchlist Tables ──────────────────────────────────────────
+
+const CREATE_WATCHLISTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS watchlists (
+    id              SERIAL PRIMARY KEY,
+    user_id         INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL DEFAULT 'Main Watchlist',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+  );
+`;
+
+const CREATE_WATCHLIST_ITEMS_TABLE = `
+  CREATE TABLE IF NOT EXISTS watchlist_items (
+    id              SERIAL PRIMARY KEY,
+    watchlist_id    INT NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+    token_address   TEXT NOT NULL,
+    network         TEXT DEFAULT 'solana',
+    position        INT DEFAULT 0,
+    pinned          BOOLEAN DEFAULT false,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(watchlist_id, token_address)
+  );
+`;
+
+const CREATE_WATCHLIST_ALERTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS watchlist_alerts (
+    id              SERIAL PRIMARY KEY,
+    user_id         INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_address   TEXT NOT NULL,
+    price_target    NUMERIC NOT NULL,
+    direction       TEXT NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+  );
+`;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // INDEX DEFINITIONS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -170,6 +205,12 @@ const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(refresh_token);`,
   `CREATE INDEX IF NOT EXISTS idx_nonces_expires ON wallet_nonces(expires_at);`,
+
+  // ── Watchlist indexes ──
+  `CREATE INDEX IF NOT EXISTS idx_watchlist_user_id ON watchlists(user_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_watchlist_items_watchlist_id ON watchlist_items(watchlist_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_watchlist_items_token ON watchlist_items(token_address);`,
+  `CREATE INDEX IF NOT EXISTS idx_watchlist_alerts_user_id ON watchlist_alerts(user_id);`,
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -197,6 +238,57 @@ async function initDb() {
     await client.query(CREATE_USERS_TABLE);
     await client.query(CREATE_WALLET_NONCES_TABLE);
     await client.query(CREATE_AUTH_SESSIONS_TABLE);
+    await client.query(CREATE_WATCHLISTS_TABLE);
+    await client.query(CREATE_WATCHLIST_ITEMS_TABLE);
+    await client.query(CREATE_WATCHLIST_ALERTS_TABLE);
+
+    // ── Legacy Watchlist Migration ──
+    // If the old table exists and is a "flat" structure (user_id, token_address),
+    // we migrate it into the new folder-based structure.
+    try {
+      const tableCheck = await client.query(`
+        SELECT count(*) FROM information_schema.tables 
+        WHERE table_name = 'watchlists' 
+        AND table_schema = 'public'
+      `);
+      
+      // If table exists, but doesn't have a 'name' column, it's the old schema
+      const columnCheck = await client.query(`
+        SELECT count(*) FROM information_schema.columns 
+        WHERE table_name = 'watchlists' AND column_name = 'name'
+      `);
+
+      if (tableCheck.rows[0].count > 0 && columnCheck.rows[0].count == 0) {
+        logger.info('Legacy watchlist table detected. Starting migration...');
+        
+        // 1. Rename old table temporarily
+        await client.query('ALTER TABLE watchlists RENAME TO watchlists_legacy');
+        
+        // 2. Clear out the new tables just in case of partial failed runs
+        await client.query(CREATE_WATCHLISTS_TABLE);
+        await client.query(CREATE_WATCHLIST_ITEMS_TABLE);
+        
+        // 3. Migrate Users -> Default Folders -> Items
+        await client.query(`
+          DO $$
+          DECLARE
+              u_id INT;
+              w_id INT;
+          BEGIN
+              FOR u_id IN SELECT DISTINCT user_id FROM watchlists_legacy LOOP
+                  INSERT INTO watchlists (user_id, name) VALUES (u_id, 'Main Watchlist') RETURNING id INTO w_id;
+                  
+                  INSERT INTO watchlist_items (watchlist_id, token_address, network, created_at)
+                  SELECT w_id, token_address, network, created_at FROM watchlists_legacy WHERE user_id = u_id;
+              END LOOP;
+          END $$;
+        `);
+        
+        logger.info('Legacy watchlist migration complete.');
+      }
+    } catch (migErr) {
+      logger.warn(`Watchlist migration check/run failed (non-critical): ${migErr.message}`);
+    }
 
     // Attempt TimescaleDB hypertable conversion (graceful fallback to standard PG)
     // We wrap this inside a SAVEPOINT. If the cloud database (like Render DB)
